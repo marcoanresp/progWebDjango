@@ -1,0 +1,13 @@
+.card-curso .card-img-top {
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+}
+
+.card-curso {
+    transition: transform .15s ease-in-out, box-shadow .15s ease-in-out;
+}
+
+.card-curso:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15);
+}

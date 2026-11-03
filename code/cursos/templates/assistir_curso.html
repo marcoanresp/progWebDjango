@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block titulo %}{{ curso.titulo }} - Sala de aula{% endblock %}
+
+{% block conteudo %}
+    <h2>{{ curso.titulo }}</h2>
+    <p>Progresso: <b>{{ matricula.progresso }}%</b></p>
+    {% for modulo in modulos %}
+        <h5 class="mt-3">Módulo {{ modulo.ordem }}: {{ modulo.titulo }}</h5>
+        <ul class="list-group">
+            {% for aula in modulo.aulas.all %}
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>
+                        {% if aula.id in aulas_concluidas %}<i class="fas fa-check-circle text-success"></i>{% else %}<i class="far fa-circle"></i>{% endif %}
+                        {{ aula.titulo }} <small class="text-body-secondary">({{ aula.get_tipo_display }})</small>
+                    </span>
+                    <small>{{ aula.duracao_minutos }} min</small>
+                </li>
+            {% endfor %}
+        </ul>
+    {% endfor %}
+{% endblock %}

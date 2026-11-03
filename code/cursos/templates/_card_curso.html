@@ -1,0 +1,23 @@
+<div class="col-sm-6 col-lg-4 mb-4">
+    <div class="card h-100 card-curso">
+        <img src="{{ curso.imagem.url }}" class="card-img-top" alt="{{ curso.titulo }}">
+        <div class="card-body d-flex flex-column">
+            <span class="badge text-bg-secondary align-self-start mb-2">{{ curso.categoria.nome }}</span>
+            <h5 class="card-title"><a href="{% url 'curso_detalhes' curso.slug %}" class="stretched-link text-decoration-none">{{ curso.titulo }}</a></h5>
+            <p class="card-text small text-body-secondary">{{ curso.vendedor.get_full_name|default:curso.vendedor.username }}</p>
+            <div class="mt-auto d-flex justify-content-between align-items-center">
+                <span>
+                    {% if curso.media_nota %}<i class="fas fa-star text-warning"></i> {{ curso.media_nota|floatformat:1 }}{% endif %}
+                    <small class="text-body-secondary">({{ curso.n_alunos }} alunos)</small>
+                </span>
+                <span class="fw-bold">
+                    {% if curso.gratuito %}Gratuito
+                    {% else %}
+                        {% if curso.em_promocao %}<s class="text-body-secondary small">R$ {{ curso.preco }}</s>{% endif %}
+                        R$ {{ curso.preco_atual }}
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,106 @@
+{% extends "admin/index.html" %}
+{% comment %}
+    Personalização da página inicial do admin (Jazzmin).
+    Estende o template original e adiciona um painel de indicadores acima da lista de apps.
+{% endcomment %}
+{% load static painel_admin %}
+
+{% block content_title %} Painel EduMarket {% endblock %}
+
+{% block content %}
+    {% resumo_painel request.user as painel %}
+    <div class="col-12 painel-edumarket">
+        {% if painel.eh_vendedor %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                Você está na <b>área do vendedor</b>: os dados abaixo consideram apenas os seus cursos.
+                Cursos novos precisam ser enviados para revisão antes de serem publicados.
+            </div>
+        {% endif %}
+
+        <div class="row">
+            {% for card in painel.cards %}
+                <div class="col-xl-2 col-md-4 col-sm-6 col-12 mb-3">
+                    <a href="{{ card.url }}" class="text-decoration-none">
+                        <div class="card card-indicador border-{{ card.cor }} h-100">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="icone-indicador text-bg-{{ card.cor }} me-3">
+                                    <i class="{{ card.icone }}"></i>
+                                </div>
+                                <div>
+                                    <div class="small text-muted">{{ card.titulo }}</div>
+                                    <div class="fs-5 fw-bold">{{ card.valor }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="row">
+            <div class="col-lg-8 col-12 mb-3">
+                <div class="card h-100">
+                    <div class="card-header"><h5 class="m-0"><i class="fas fa-chart-line"></i> Receita dos últimos 6 meses</h5></div>
+                    <div class="card-body">
+                        <div style="position: relative; height: 260px;">
+                            <canvas id="graficoReceita"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4 col-12 mb-3">
+                <div class="card h-100">
+                    <div class="card-header"><h5 class="m-0"><i class="fas fa-trophy"></i> Cursos mais vendidos</h5></div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <tbody>
+                            {% for curso in painel.top_cursos %}
+                                <tr>
+                                    <td class="ps-3">{{ forloop.counter }}º</td>
+                                    <td><a href="{{ curso.url }}">{{ curso.titulo }}</a></td>
+                                    <td class="text-end pe-3 fw-bold">{{ curso.receita }}</td>
+                                </tr>
+                            {% empty %}
+                                <tr><td class="ps-3 text-muted">Nenhuma venda registrada ainda.</td></tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{ block.super }}
+
+    <script src="{% static 'js/chart.umd.min.js' %}"></script>
+    <script>
+        (function () {
+            const ctx = document.getElementById("graficoReceita");
+            if (!ctx || typeof Chart === "undefined") return;
+            const escuro = document.documentElement.getAttribute("data-bs-theme") === "dark";
+            const corTexto = escuro ? "#dee2e6" : "#495057";
+            new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: {{ painel.grafico_labels|safe }},
+                    datasets: [{
+                        label: "Receita (R$)",
+                        data: {{ painel.grafico_valores|safe }},
+                        backgroundColor: "rgba(44, 123, 229, 0.75)",
+                        borderRadius: 6,
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: corTexto }, grid: { display: false } },
+                        y: { ticks: { color: corTexto }, beginAtZero: true }
+                    }
+                }
+            });
+        })();
+    </script>
+{% endblock %}

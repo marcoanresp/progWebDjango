@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block titulo %}EduMarket - Cursos{% endblock %}
+
+{% block conteudo %}
+    <h2 class="mb-3">Cursos</h2>
+    <form class="row g-2 mb-4" method="get">
+        <div class="col-md-4"><input class="form-control" type="search" name="q" value="{{ filtros.q }}" placeholder="Buscar cursos"></div>
+        <div class="col-md-2">
+            <select class="form-select" name="categoria">
+                <option value="">Todas as categorias</option>
+                {% for c in categorias %}<option value="{{ c.slug }}" {% if filtros.categoria == c.slug %}selected{% endif %}>{{ c }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" name="nivel">
+                <option value="">Todos os níveis</option>
+                {% for valor, nome in niveis %}<option value="{{ valor }}" {% if filtros.nivel == valor %}selected{% endif %}>{{ nome }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" name="ordem">
+                <option value="recentes">Mais recentes</option>
+                <option value="populares" {% if filtros.ordem == 'populares' %}selected{% endif %}>Mais populares</option>
+                <option value="avaliados" {% if filtros.ordem == 'avaliados' %}selected{% endif %}>Melhor avaliados</option>
+                <option value="menor_preco" {% if filtros.ordem == 'menor_preco' %}selected{% endif %}>Menor preço</option>
+                <option value="maior_preco" {% if filtros.ordem == 'maior_preco' %}selected{% endif %}>Maior preço</option>
+            </select>
+        </div>
+        <div class="col-md-2 d-grid"><button class="btn btn-primary" type="submit"><i class="fas fa-filter"></i> Filtrar</button></div>
+    </form>
+
+    <div class="row">
+        {% for curso in cursos %}
+            {% include "_card_curso.html" %}
+        {% empty %}
+            <h5 class="mt-4">Nenhum curso encontrado.</h5>
+        {% endfor %}
+    </div>
+
+    {% if is_paginated %}
+        <nav><ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a></li>{% endif %}
+            <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a></li>{% endif %}
+        </ul></nav>
+    {% endif %}
+{% endblock %}

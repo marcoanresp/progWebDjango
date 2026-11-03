@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block titulo %}{{ curso.titulo }} - EduMarket{% endblock %}
+
+{% block conteudo %}
+    <div class="row">
+        <div class="col-lg-8">
+            <span class="badge text-bg-secondary">{{ curso.categoria }}</span>
+            <h2 class="mt-2">{{ curso.titulo }}</h2>
+            <p class="lead">{{ curso.subtitulo }}</p>
+            <p class="text-body-secondary">
+                Por <b>{{ curso.vendedor.get_full_name|default:curso.vendedor.username }}</b> ·
+                {{ curso.get_nivel_display }} · {{ curso.get_idioma_display }} ·
+                {{ curso.n_alunos }} alunos
+                {% if curso.media_nota %}· <i class="fas fa-star text-warning"></i> {{ curso.media_nota|floatformat:1 }}{% endif %}
+            </p>
+            <h5>Descrição</h5>
+            <p>{{ curso.descricao|linebreaksbr }}</p>
+            {% if curso.objetivos %}<h5>O que você vai aprender</h5><p>{{ curso.objetivos|linebreaksbr }}</p>{% endif %}
+            {% if curso.requisitos %}<h5>Requisitos</h5><p>{{ curso.requisitos|linebreaksbr }}</p>{% endif %}
+
+            <h5 class="mt-4">Conteúdo do curso</h5>
+            <div class="accordion mb-4" id="conteudo">
+                {% for modulo in curso.modulos.all %}
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#m{{ modulo.id }}">
+                                Módulo {{ modulo.ordem }}: {{ modulo.titulo }}
+                            </button>
+                        </h2>
+                        <div id="m{{ modulo.id }}" class="accordion-collapse collapse" data-bs-parent="#conteudo">
+                            <ul class="list-group list-group-flush">
+                                {% for aula in modulo.aulas.all %}
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <span>{{ aula.titulo }} {% if aula.previa_gratuita %}<span class="badge text-bg-info">prévia</span>{% endif %}</span>
+                                        <small>{{ aula.duracao_minutos }} min</small>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <h5>Avaliações</h5>
+            {% for avaliacao in avaliacoes %}
+                <div class="border-bottom py-2">
+                    <span class="text-warning">{% for i in "12345" %}{% if forloop.counter <= avaliacao.nota %}★{% else %}☆{% endif %}{% endfor %}</span>
+                    <b>{{ avaliacao.aluno.first_name|default:avaliacao.aluno.username }}</b>
+                    <p class="mb-0">{{ avaliacao.comentario }}</p>
+                </div>
+            {% empty %}
+                <p class="text-body-secondary">Este curso ainda não recebeu avaliações.</p>
+            {% endfor %}
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card sticky-lg-top" style="top: 1rem;">
+                <img src="{{ curso.imagem.url }}" class="card-img-top" alt="{{ curso.titulo }}">
+                <div class="card-body">
+                    <h3>
+                        {% if curso.gratuito %}Gratuito{% else %}R$ {{ curso.preco_atual }}{% endif %}
+                        {% if curso.em_promocao %}<s class="fs-6 text-body-secondary">R$ {{ curso.preco }}</s>{% endif %}
+                    </h3>
+                    {% if matriculado %}
+                        <a href="{% url 'assistir_curso' curso.slug %}" class="btn btn-success w-100">Ir para o curso</a>
+                    {% else %}
+                        <form method="post" action="{% url 'comprar' curso.slug %}">
+                            {% csrf_token %}
+                            <button class="btn btn-primary w-100" type="submit">{% if curso.gratuito %}Inscrever-se{% else %}Comprar agora{% endif %}</button>
+                        </form>
+                    {% endif %}
+                    <ul class="list-unstyled small mt-3 mb-0">
+                        <li><i class="fas fa-clock"></i> {{ curso.duracao_total }} minutos de conteúdo</li>
+                        <li><i class="fas fa-play-circle"></i> {{ curso.total_aulas }} aulas</li>
+                        {% if curso.emite_certificado %}<li><i class="fas fa-certificate"></i> Certificado de conclusão</li>{% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

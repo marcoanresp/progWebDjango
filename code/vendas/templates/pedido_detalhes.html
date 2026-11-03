@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block titulo %}Pedido #{{ pedido.numero }} - EduMarket{% endblock %}
+
+{% block conteudo %}
+    <h2>Pedido #{{ pedido.numero }} <span class="badge text-bg-secondary fs-6 align-middle">{{ pedido.get_status_display }}</span></h2>
+    <table class="table mt-3">
+        <thead><tr><th>Curso</th><th class="text-end">Preço</th><th class="text-end">Desconto</th></tr></thead>
+        <tbody>
+        {% for item in pedido.itens.all %}
+            <tr><td>{{ item.curso.titulo }}</td><td class="text-end">R$ {{ item.preco_unitario }}</td><td class="text-end">R$ {{ item.desconto }}</td></tr>
+        {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr><th>Subtotal</th><td colspan="2" class="text-end">R$ {{ pedido.subtotal }}</td></tr>
+            <tr><th>Desconto {% if pedido.cupom %}({{ pedido.cupom.codigo }}){% endif %}</th><td colspan="2" class="text-end">- R$ {{ pedido.desconto }}</td></tr>
+            <tr><th>Total</th><td colspan="2" class="text-end fw-bold">R$ {{ pedido.total }}</td></tr>
+        </tfoot>
+    </table>
+
+    {% if pedido.status == "PENDENTE" %}
+        <div class="row g-3">
+            <div class="col-md-6">
+                <form class="d-flex gap-2" method="post" action="{% url 'aplicar_cupom' pedido.pk %}">
+                    {% csrf_token %}
+                    <input class="form-control" name="cupom" placeholder="Cupom de desconto">
+                    <button class="btn btn-outline-secondary" type="submit">Aplicar</button>
+                </form>
+            </div>
+            <div class="col-md-6">
+                <form class="d-flex gap-2" method="post" action="{% url 'pagar' pedido.pk %}">
+                    {% csrf_token %}
+                    <select class="form-select" name="forma_pagamento">
+                        {% for valor, nome in formas_pagamento %}<option value="{{ valor }}">{{ nome }}</option>{% endfor %}
+                    </select>
+                    <button class="btn btn-success text-nowrap" type="submit">Pagar (simulado)</button>
+                </form>
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}

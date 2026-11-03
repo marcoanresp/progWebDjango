@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block titulo %}Meu perfil - EduMarket{% endblock %}
+
+{% block conteudo %}
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <h2 class="mb-3">Meu perfil <span class="badge text-bg-primary fs-6 align-middle">{{ user.perfil.get_tipo_display }}</span></h2>
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                {% for campo in form %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+                        {{ campo }}
+                        {% for erro in campo.errors %}<div class="text-danger small">{{ erro }}</div>{% endfor %}
+                    </div>
+                {% endfor %}
+                <button class="btn btn-primary" type="submit">Salvar</button>
+            </form>
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block titulo %}Meus cursos - EduMarket{% endblock %}
+
+{% block conteudo %}
+    <h2 class="mb-3">Meus cursos</h2>
+    <div class="row">
+        {% for matricula in matriculas %}
+            <div class="col-sm-6 col-lg-4 mb-4">
+                <div class="card h-100">
+                    <img src="{{ matricula.curso.imagem.url }}" class="card-img-top" alt="{{ matricula.curso.titulo }}">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ matricula.curso.titulo }}</h5>
+                        <div class="progress mb-2" role="progressbar" aria-valuenow="{{ matricula.progresso }}" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar bg-success" style="width: {{ matricula.progresso }}%">{{ matricula.progresso }}%</div>
+                        </div>
+                        <a href="{% url 'assistir_curso' matricula.curso.slug %}" class="btn btn-primary btn-sm">Continuar</a>
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <p>Você ainda não possui cursos. <a href="{% url 'cursos' %}">Explore o catálogo</a>.</p>
+        {% endfor %}
+    </div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block titulo %}Meus pedidos - EduMarket{% endblock %}
+
+{% block conteudo %}
+    <h2 class="mb-3">Meus pedidos</h2>
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Pedido</th><th>Data</th><th>Cursos</th><th>Total</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+            {% for pedido in pedidos %}
+                <tr>
+                    <td>#{{ pedido.numero }}</td>
+                    <td>{{ pedido.criado_em|date:"d/m/Y H:i" }}</td>
+                    <td>{% for item in pedido.itens.all %}{{ item.curso.titulo }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+                    <td>R$ {{ pedido.total }}</td>
+                    <td>{{ pedido.get_status_display }}</td>
+                    <td><a class="btn btn-sm btn-outline-primary" href="{% url 'pedido_detalhes' pedido.pk %}">Detalhes</a></td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6">Nenhum pedido realizado.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}
