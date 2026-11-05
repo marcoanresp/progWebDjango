@@ -139,3 +139,4 @@ Para recriar os grupos/permissões manualmente: `python3 manage.py configurar_pe
 ```bash
 python3 manage.py test
 ```
+
