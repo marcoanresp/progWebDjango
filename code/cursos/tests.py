@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import Aula, Avaliacao, Categoria, Curso, Matricula, Modulo
+from .models import Aula, Avaliacao, Categoria, Curso, Matricula, Modulo, ProgressoAula
 
 
 def criar_vendedor(username="prof"):
@@ -58,6 +58,33 @@ class CursoModelTestCase(TestCase):
             avaliacao.full_clean()
         Matricula.objects.create(aluno=aluno, curso=self.curso)
         avaliacao.full_clean()  # agora é válida
+
+    # Confirma que as regras também valem fora de formulários.
+    def test_avaliacao_exige_matricula_ativa_ao_salvar(self):
+        aluno = User.objects.create_user(username="aluno-inativo", email="aluno-inativo@example.com")
+        Matricula.objects.create(aluno=aluno, curso=self.curso, ativa=False)
+        with self.assertRaises(ValidationError):
+            Avaliacao.objects.create(curso=self.curso, aluno=aluno, nota=5)
+
+    def test_progresso_nao_pode_apontar_para_aula_de_outro_curso(self):
+        aluno = User.objects.create_user(username="aluno-progresso", email="progresso@example.com")
+        matricula = Matricula.objects.create(aluno=aluno, curso=self.curso)
+        outro_curso = Curso.objects.create(
+            titulo="Outro curso", descricao="x", vendedor=self.vendedor,
+            categoria=self.categoria, preco=10)
+        outro_modulo = Modulo.objects.create(curso=outro_curso, titulo="Módulo")
+        outra_aula = Aula.objects.create(modulo=outro_modulo, titulo="Aula")
+        with self.assertRaises(ValidationError):
+            ProgressoAula.objects.create(matricula=matricula, aula=outra_aula)
+
+    # Documenta a política escolhida: categoria inativa não retira curso publicado do catálogo.
+    def test_categoria_inativa_nao_oculta_curso_publicado(self):
+        self.curso.status = Curso.Status.PUBLICADO
+        self.curso.save()
+        self.categoria.ativa = False
+        self.categoria.save()
+        resposta = self.client.get(reverse("cursos"))
+        self.assertContains(resposta, self.curso.titulo)
 
 
 class CursoViewTestCase(TestCase):

@@ -43,8 +43,10 @@ class CupomAdmin(VendedorRestritoMixin, admin.ModelAdmin):
     )
 
     def get_queryset(self, request):
+        # O contador do admin usa a mesma política de reserva que o checkout.
         return super().get_queryset(request).select_related("vendedor").annotate(
-            n_usos=Count("pedidos", filter=~Q(pedidos__status=Pedido.Status.CANCELADO)))
+            n_usos=Count("pedidos", filter=Q(
+                pedidos__status__in=[Pedido.Status.PENDENTE, Pedido.Status.PAGO])))
 
     def get_readonly_fields(self, request, obj=None):
         if eh_vendedor(request):
@@ -100,9 +102,18 @@ class CupomAdmin(VendedorRestritoMixin, admin.ModelAdmin):
 class ItemPedidoInline(admin.TabularInline):
     model = ItemPedido
     fields = ("curso", "preco_unitario", "desconto", "valor_final_formatado")
-    readonly_fields = ("desconto", "valor_final_formatado")
+    # O preço e o curso do item são snapshots; substituições exigem remover e adicionar outro item.
+    readonly_fields = ("curso", "preco_unitario", "desconto", "valor_final_formatado")
     autocomplete_fields = ("curso",)
     extra = 0
+
+    def has_add_permission(self, request, obj=None):
+        return super().has_add_permission(request, obj) and (
+            obj is None or obj.status == Pedido.Status.PENDENTE)
+
+    def has_delete_permission(self, request, obj=None):
+        return super().has_delete_permission(request, obj) and (
+            obj is None or obj.status == Pedido.Status.PENDENTE)
 
     @admin.display(description="valor final")
     def valor_final_formatado(self, obj):
@@ -124,7 +135,8 @@ class PedidoAdmin(VendedorRestritoMixin, admin.ModelAdmin):
     date_hierarchy = "criado_em"
     list_select_related = ("cliente", "cupom")
     autocomplete_fields = ("cliente", "cupom")
-    readonly_fields = ("subtotal", "desconto", "total", "criado_em", "pago_em")
+    # Alterações de status e aplicação de cupom devem passar pelos fluxos controlados do modelo/site.
+    readonly_fields = ("status", "cupom", "subtotal", "desconto", "total", "criado_em", "pago_em")
     inlines = [ItemPedidoInline]
     actions = ["confirmar_pagamento", "cancelar", "reembolsar", exportar_csv]
     fieldsets = (
@@ -137,6 +149,15 @@ class PedidoAdmin(VendedorRestritoMixin, admin.ModelAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(n_itens=Count("itens", distinct=True))
 
+    def get_readonly_fields(self, request, obj=None):
+        # Evita trocar o cliente ou os dados de pagamento depois que o pedido foi criado/pago.
+        campos = list(super().get_readonly_fields(request, obj))
+        if obj:
+            campos.append("cliente")
+            if obj.status != Pedido.Status.PENDENTE:
+                campos.extend(("forma_pagamento", "parcelas"))
+        return campos
+
     def get_actions(self, request):
         acoes = super().get_actions(request)
         if eh_vendedor(request):  # vendedor apenas consulta as vendas
@@ -145,17 +166,12 @@ class PedidoAdmin(VendedorRestritoMixin, admin.ModelAdmin):
         return acoes
 
     def save_related(self, request, form, formsets, change):
-        """Depois de salvar os itens, recalcula os totais e aplica as regras do status."""
+        """Depois de salvar os itens, recalcula os totais apenas de pedidos pendentes."""
         super().save_related(request, form, formsets, change)
         pedido = form.instance
-        pedido.recalcular_totais()
-        if pedido.status == Pedido.Status.PAGO:
-            if pedido.pago_em is None:
-                pedido.pago_em = timezone.now()
-                pedido.save(update_fields=["pago_em"])
-            pedido.liberar_acesso()
-        elif pedido.status in (Pedido.Status.CANCELADO, Pedido.Status.REEMBOLSADO):
-            pedido.matriculas.update(ativa=False)
+        # O admin só recalcula pedidos pendentes; pedidos encerrados preservam o histórico financeiro.
+        if pedido.status == Pedido.Status.PENDENTE:
+            pedido.recalcular_totais()
 
     # ----- Colunas -----
     @admin.display(description="pedido", ordering="id")
@@ -196,9 +212,10 @@ class PedidoAdmin(VendedorRestritoMixin, admin.ModelAdmin):
 
     @admin.action(description="Cancelar pedidos")
     def cancelar(self, request, queryset):
-        for pedido in queryset.exclude(status=Pedido.Status.CANCELADO):
+        # Cancelamento encerra apenas pedidos pendentes; pagos exigem ação de reembolso.
+        for pedido in queryset.filter(status=Pedido.Status.PENDENTE):
             pedido.cancelar()
-        self.message_user(request, "Pedido(s) cancelado(s).", messages.WARNING)
+        self.message_user(request, "Pedido(s) pendente(s) cancelado(s).", messages.WARNING)
 
     @admin.action(description="Reembolsar pedidos pagos")
     def reembolsar(self, request, queryset):

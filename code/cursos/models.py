@@ -117,9 +117,13 @@ class Curso(models.Model):
         return self.titulo
 
     def clean(self):
+        # Estas regras também são executadas em gravações fora dos formulários do admin.
         if self.preco_promocional is not None and self.preco is not None \
                 and self.preco_promocional >= self.preco:
             raise ValidationError({"preco_promocional": "O preço promocional deve ser menor que o preço normal."})
+        if self.vendedor_id and not User.objects.filter(
+                pk=self.vendedor_id, perfil__tipo="VENDEDOR").exists():
+            raise ValidationError({"vendedor": "O responsável pelo curso precisa ter perfil de vendedor."})
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -132,6 +136,8 @@ class Curso(models.Model):
             self.slug = slug
         if self.status == self.Status.PUBLICADO and self.publicado_em is None:
             self.publicado_em = timezone.now()
+        # Impede que preços promocionais inválidos sejam persistidos por chamadas diretas ao ORM.
+        self.full_clean()
         super().save(*args, **kwargs)
 
     def get_absolute_url(self):
@@ -277,6 +283,19 @@ class ProgressoAula(models.Model):
             models.UniqueConstraint(fields=["matricula", "aula"], name="progresso_unico_por_aula"),
         ]
 
+    def clean(self):
+        # O progresso só pode apontar para uma aula do mesmo curso da matrícula.
+        if self.matricula_id and self.aula_id:
+            curso_id = Matricula.objects.filter(pk=self.matricula_id).values_list("curso_id", flat=True).first()
+            if curso_id is not None and not Aula.objects.filter(
+                    pk=self.aula_id, modulo__curso_id=curso_id).exists():
+                raise ValidationError({"aula": "A aula deve pertencer ao curso desta matrícula."})
+
+    def save(self, *args, **kwargs):
+        # Garante a regra de vínculo inclusive quando o progresso é salvo pelo ORM diretamente.
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.matricula.aluno.username} - {self.aula.titulo}"
 
@@ -303,6 +322,13 @@ class Avaliacao(models.Model):
         return f"{self.curso.titulo} - {self.nota}★ por {self.aluno.username}"
 
     def clean(self):
+        # Apenas matrículas ativas autorizam novas avaliações.
         if self.curso_id and self.aluno_id and \
-                not Matricula.objects.filter(curso_id=self.curso_id, aluno_id=self.aluno_id).exists():
-            raise ValidationError("Somente alunos matriculados podem avaliar o curso.")
+                not Matricula.objects.filter(
+                    curso_id=self.curso_id, aluno_id=self.aluno_id, ativa=True).exists():
+            raise ValidationError("Somente alunos com matrícula ativa podem avaliar o curso.")
+
+    def save(self, *args, **kwargs):
+        # Valida matrícula e nota também em criações fora de ModelForms.
+        self.full_clean()
+        super().save(*args, **kwargs)

@@ -76,7 +76,9 @@ class SituacaoCupomFilter(admin.SimpleListFilter):
 
     def queryset(self, request, queryset):
         agora = timezone.now()
-        qs = queryset.annotate(_usos=Count("pedidos", filter=~Q(pedidos__status="CANCELADO")))
+        # Pedidos reembolsados não consomem uso, como definido pela regra do cupom.
+        qs = queryset.annotate(_usos=Count(
+            "pedidos", filter=Q(pedidos__status__in=["PENDENTE", "PAGO"])))
         esgotado = Q(usos_maximos__isnull=False, _usos__gte=F("usos_maximos"))
         expirado = Q(validade_fim__isnull=False, validade_fim__lt=agora)
         if self.value() == "valido":

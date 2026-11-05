@@ -1,6 +1,9 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView
@@ -12,15 +15,24 @@ from .models import Cupom, ItemPedido, Pedido
 
 @login_required
 @require_POST
+@transaction.atomic
 def comprar(request, slug):
     """Cria um pedido (aguardando pagamento) com o curso escolhido."""
-    curso = get_object_or_404(Curso, slug=slug, status=Curso.Status.PUBLICADO)
+    # Serializa compras do mesmo usuário e impede pedidos pendentes duplicados no fluxo normal.
+    User.objects.select_for_update().get(pk=request.user.pk)
+    curso = get_object_or_404(
+        Curso.objects.select_for_update(), slug=slug, status=Curso.Status.PUBLICADO)
     if curso.vendedor_id == request.user.id:
         messages.warning(request, 'Você não pode comprar o seu próprio curso.')
         return redirect('curso_detalhes', slug=slug)
     if Matricula.objects.filter(aluno=request.user, curso=curso, ativa=True).exists():
         messages.info(request, 'Você já possui este curso.')
         return redirect('assistir_curso', slug=slug)
+    pedido_existente = Pedido.objects.filter(
+        cliente=request.user, status=Pedido.Status.PENDENTE, itens__curso=curso).first()
+    if pedido_existente:
+        messages.info(request, 'Já existe um pedido pendente para este curso.')
+        return redirect('pedido_detalhes', pk=pedido_existente.pk)
 
     pedido = Pedido.objects.create(cliente=request.user)
     ItemPedido.objects.create(pedido=pedido, curso=curso)
@@ -39,15 +51,16 @@ def aplicar_cupom(request, pk):
     pedido = get_object_or_404(Pedido, pk=pk, cliente=request.user, status=Pedido.Status.PENDENTE)
     codigo = request.POST.get('cupom', '').strip().upper()
     cupom = Cupom.objects.filter(codigo=codigo).first()
-    if not cupom or not cupom.esta_valido():
+    if not cupom:
         messages.error(request, 'Cupom inválido ou expirado.')
-    elif not any(cupom.aplica_ao_curso(item.curso) for item in pedido.itens.all()):
-        messages.error(request, 'Este cupom não é válido para os cursos do pedido.')
     else:
-        pedido.cupom = cupom
-        pedido.save(update_fields=['cupom'])
-        pedido.recalcular_totais()
-        messages.success(request, f'Cupom {cupom.codigo} aplicado!')
+        # A validação, reserva de uso e gravação do desconto são feitas juntas no modelo.
+        try:
+            pedido.aplicar_cupom(cupom)
+        except ValidationError as erro:
+            messages.error(request, ' '.join(erro.messages))
+        else:
+            messages.success(request, f'Cupom {cupom.codigo} aplicado!')
     return redirect('pedido_detalhes', pk=pk)
 
 

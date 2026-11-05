@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
@@ -34,7 +35,7 @@ class PedidoTestCase(TestCase):
 
     def test_cupom_percentual_da_plataforma(self):
         self.pedido.cupom = Cupom.objects.create(codigo="dez", tipo="PERCENTUAL", valor=10)
-        self.pedido.recalcular_totais()
+        self.pedido.aplicar_cupom(self.pedido.cupom)
         self.assertEqual(self.pedido.cupom.codigo, "DEZ")
         self.assertEqual(self.pedido.desconto, Decimal("25.00"))
         self.assertEqual(self.pedido.total, Decimal("225.00"))
@@ -42,9 +43,71 @@ class PedidoTestCase(TestCase):
     def test_cupom_de_vendedor_vale_so_para_os_cursos_dele(self):
         self.pedido.cupom = Cupom.objects.create(codigo="PROF30", tipo="VALOR_FIXO", valor=30,
                                                  vendedor=self.vendedor)
-        self.pedido.recalcular_totais()
+        self.pedido.aplicar_cupom(self.pedido.cupom)
         self.assertEqual(self.pedido.desconto, Decimal("30.00"))
         self.assertEqual(self.pedido.total, Decimal("220.00"))
+
+    # Verifica reserva de usos e manutenção dos valores acordados após expiração.
+    def test_cupom_pendente_reserva_uso_e_desconto_fica_congelado(self):
+        cupom = Cupom.objects.create(codigo="UNICO", tipo="PERCENTUAL", valor=10, usos_maximos=1)
+        self.pedido.aplicar_cupom(cupom)
+        self.assertEqual(cupom.total_usos, 1)
+
+        outro_pedido = Pedido.objects.create(cliente=self.cliente)
+        ItemPedido.objects.create(pedido=outro_pedido, curso=self.curso1)
+        with self.assertRaises(ValidationError):
+            outro_pedido.aplicar_cupom(cupom)
+
+        cupom.ativo = False
+        cupom.save()
+        self.pedido.recalcular_totais()
+        self.assertEqual(self.pedido.desconto, Decimal("25.00"))
+        self.assertEqual(self.pedido.total, Decimal("225.00"))
+
+    def test_cancelar_ou_reembolsar_libera_uso_do_cupom(self):
+        cupom = Cupom.objects.create(codigo="RESERVA", tipo="PERCENTUAL", valor=10, usos_maximos=1)
+        self.pedido.aplicar_cupom(cupom)
+        self.pedido.cancelar()
+        self.assertEqual(cupom.total_usos, 0)
+
+        outro_pedido = Pedido.objects.create(cliente=self.cliente)
+        ItemPedido.objects.create(pedido=outro_pedido, curso=self.curso1)
+        outro_pedido.aplicar_cupom(cupom)
+        outro_pedido.confirmar_pagamento()
+        outro_pedido.cancelar(reembolso=True)
+        self.assertEqual(cupom.total_usos, 0)
+
+    # Confirma que pagamentos, cancelamentos e reembolsos respeitam as transições permitidas.
+    def test_cancelar_pedido_pago_exige_reembolso_e_estados_sao_finais(self):
+        self.pedido.confirmar_pagamento()
+        with self.assertRaises(ValidationError):
+            self.pedido.cancelar()
+        self.pedido.cancelar(reembolso=True)
+        with self.assertRaises(ValidationError):
+            self.pedido.confirmar_pagamento()
+
+    def test_cancelar_pedido_pendente_impede_pagamento_posterior(self):
+        self.pedido.cancelar()
+        self.assertEqual(self.pedido.status, Pedido.Status.CANCELADO)
+        with self.assertRaises(ValidationError):
+            self.pedido.confirmar_pagamento()
+
+    # Verifica que gravações genéricas não ignoram as transições e snapshots do pedido.
+    def test_status_e_preco_historico_nao_sao_editaveis_diretamente(self):
+        self.pedido.status = Pedido.Status.PAGO
+        with self.assertRaises(ValidationError):
+            self.pedido.save(update_fields=["status"])
+
+        item = self.pedido.itens.first()
+        item.preco_unitario = Decimal("1.00")
+        with self.assertRaises(ValidationError):
+            item.save()
+
+    def test_preco_do_item_permanece_igual_apos_alterar_curso(self):
+        self.curso1.preco = Decimal("300.00")
+        self.curso1.save()
+        self.pedido.recalcular_totais()
+        self.assertEqual(self.pedido.total, Decimal("250.00"))
 
     def test_confirmar_pagamento_cria_matriculas_e_cancelar_remove_acesso(self):
         self.pedido.confirmar_pagamento()
@@ -63,6 +126,17 @@ class PedidoTestCase(TestCase):
         pedido.refresh_from_db()
         self.assertEqual(pedido.status, Pedido.Status.PAGO)
         self.assertTrue(Matricula.objects.filter(aluno=self.cliente, curso=self.curso1).exists())
+
+    # Um segundo envio do formulário reutiliza o pedido em vez de iniciar outra cobrança.
+    def test_compra_reutiliza_pedido_pendente_existente(self):
+        # Autentica o usuário já criado no teste sem depender de senha.
+        self.client.force_login(self.cliente)
+        primeira_resposta = self.client.post(reverse("comprar", args=[self.curso1.slug]))
+        pedido = Pedido.objects.get(cliente=self.cliente, status=Pedido.Status.PENDENTE)
+        segunda_resposta = self.client.post(reverse("comprar", args=[self.curso1.slug]))
+        self.assertRedirects(primeira_resposta, reverse("pedido_detalhes", args=[pedido.pk]))
+        self.assertRedirects(segunda_resposta, reverse("pedido_detalhes", args=[pedido.pk]))
+        self.assertEqual(Pedido.objects.filter(cliente=self.cliente).count(), 1)
 
 
 class AdminVendedorTestCase(TestCase):
