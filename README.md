@@ -6,7 +6,7 @@ como projeto da disciplina de Programação Web da Universidade Federal de Lavra
 # Alunos
 
 Marco Antonio Roquini Espudario;
-Thales Negrão
+Thales Maia Mendonça Negrão
 
 ## Descrição do projeto
 
