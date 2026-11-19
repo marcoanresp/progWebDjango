@@ -11,3 +11,40 @@
     transform: translateY(-3px);
     box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15);
 }
+
+/* Seleção de nota com estrelas (formulário de avaliação).
+   Os botões ficam escondidos; as estrelas são os <label>. A ordem no HTML é 5,4,3,2,1 e o
+   row-reverse mostra 1..5 da esquerda para a direita, o que permite pintar "esta e as anteriores"
+   com o seletor de irmãos (~). */
+.estrelas-input {
+    display: inline-flex;
+    flex-direction: row-reverse;
+    gap: .15rem;
+}
+
+.estrelas-input input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+}
+
+.estrelas-input label {
+    font-size: 2rem;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--bs-secondary-color);
+    transition: color .1s;
+}
+
+.estrelas-input label:hover,
+.estrelas-input label:hover ~ label,
+.estrelas-input input:checked ~ label {
+    color: #ffc107;
+}
+
+.estrelas-input input:focus-visible + label {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+}

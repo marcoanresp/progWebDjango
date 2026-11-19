@@ -91,3 +91,93 @@ class CursoViewTestCase(TestCase):
         User.objects.create_user(username="cliente", password="SenhaForte#2026")
         self.client.login(username="cliente", password="SenhaForte#2026")
         self.assertEqual(self.client.get(reverse("painel_vendedor")).status_code, 403)
+
+
+class AvaliacaoSiteTestCase(TestCase):
+    """Aluno avaliando um curso pelo site."""
+
+    def setUp(self):
+        vendedor = criar_vendedor()
+        categoria = Categoria.objects.create(nome="Programação")
+        self.curso = Curso.objects.create(titulo="Django Básico", descricao="x", vendedor=vendedor,
+                                          categoria=categoria, preco=50, status=Curso.Status.PUBLICADO)
+        self.aluno = User.objects.create_user(username="aluno", password="SenhaForte#2026", first_name="Ana")
+        self.matricula = Matricula.objects.create(aluno=self.aluno, curso=self.curso)
+        self.url = reverse("avaliar_curso", args=[self.curso.slug])
+
+    def entrar(self, username="aluno"):
+        self.client.login(username=username, password="SenhaForte#2026")
+
+    def test_aluno_matriculado_avalia(self):
+        self.entrar()
+        resposta = self.client.post(self.url, {"nota": "4", "comentario": "Muito bom!"})
+        self.assertRedirects(resposta, reverse("curso_detalhes", args=[self.curso.slug]) + "#avaliar",
+                             fetch_redirect_response=False)
+        avaliacao = Avaliacao.objects.get(curso=self.curso, aluno=self.aluno)
+        self.assertEqual(avaliacao.nota, 4)
+        self.assertTrue(avaliacao.aprovada)  # aparece na hora; o admin pode ocultar depois
+
+    def test_enviar_de_novo_edita_em_vez_de_duplicar(self):
+        self.entrar()
+        self.client.post(self.url, {"nota": "2", "comentario": "Fraco"})
+        self.client.post(self.url, {"nota": "5", "comentario": "Mudei de ideia"})
+        self.assertEqual(Avaliacao.objects.filter(curso=self.curso, aluno=self.aluno).count(), 1)
+        self.assertEqual(Avaliacao.objects.get(aluno=self.aluno).nota, 5)
+
+    def test_quem_nao_comprou_nao_avalia(self):
+        User.objects.create_user(username="curioso", password="SenhaForte#2026")
+        self.entrar("curioso")
+        self.client.post(self.url, {"nota": "1"})
+        self.assertFalse(Avaliacao.objects.filter(aluno__username="curioso").exists())
+
+    def test_matricula_inativa_nao_avalia(self):
+        self.matricula.ativa = False  # ex.: pedido reembolsado
+        self.matricula.save()
+        self.entrar()
+        self.client.post(self.url, {"nota": "5"})
+        self.assertFalse(Avaliacao.objects.exists())
+
+    def test_visitante_e_mandado_para_o_login(self):
+        resposta = self.client.post(self.url, {"nota": "5"})
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn("/auth/login", resposta["Location"])
+        self.assertFalse(Avaliacao.objects.exists())
+
+    def test_nota_invalida_e_recusada(self):
+        self.entrar()
+        for nota in ["0", "6", "abc", ""]:
+            self.client.post(self.url, {"nota": nota})
+        self.assertFalse(Avaliacao.objects.exists())
+
+    def test_get_nao_e_permitido(self):
+        self.entrar()
+        self.assertEqual(self.client.get(self.url).status_code, 405)
+
+    def test_editar_nao_reexibe_avaliacao_ocultada_pela_moderacao(self):
+        Avaliacao.objects.create(curso=self.curso, aluno=self.aluno, nota=1, comentario="ofensivo", aprovada=False)
+        self.entrar()
+        self.client.post(self.url, {"nota": "1", "comentario": "editado"})
+        self.assertFalse(Avaliacao.objects.get(aluno=self.aluno).aprovada)
+
+    def test_excluir_avaliacao(self):
+        Avaliacao.objects.create(curso=self.curso, aluno=self.aluno, nota=3)
+        self.entrar()
+        self.client.post(reverse("excluir_avaliacao", args=[self.curso.slug]))
+        self.assertFalse(Avaliacao.objects.exists())
+
+    def test_pagina_do_curso_mostra_formulario_so_para_aluno(self):
+        detalhes = reverse("curso_detalhes", args=[self.curso.slug])
+        self.assertNotContains(self.client.get(detalhes), 'id="avaliar"')  # visitante
+        self.entrar()
+        self.assertContains(self.client.get(detalhes), 'id="avaliar"')     # aluno matriculado
+
+    def test_resumo_de_avaliacoes(self):
+        Avaliacao.objects.create(curso=self.curso, aluno=self.aluno, nota=5)
+        outro = User.objects.create_user(username="b", password="SenhaForte#2026")
+        Matricula.objects.create(aluno=outro, curso=self.curso)
+        Avaliacao.objects.create(curso=self.curso, aluno=outro, nota=4)
+        resposta = self.client.get(reverse("curso_detalhes", args=[self.curso.slug]))
+        resumo = resposta.context["resumo_avaliacoes"]
+        self.assertEqual(resumo["total"], 2)
+        self.assertEqual(resumo["estrelas"][0], {"nota": 5, "qtd": 1, "porcentagem": 50})
+        self.assertContains(resposta, "2 avaliações")

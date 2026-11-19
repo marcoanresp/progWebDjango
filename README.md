@@ -72,6 +72,9 @@ erDiagram
   criadas; ao **cancelar/reembolsar** o acesso é removido.
 * Cupom: percentual ou valor fixo, com validade e limite de usos. Cupom de vendedor só vale para os cursos dele.
 * A plataforma fica com 10% de cada venda (`TAXA_PLATAFORMA` no `settings.py`).
+* Avaliações: só alunos com matrícula ativa avaliam (nota de 1 a 5 e comentário opcional), uma por curso.
+  Enviar de novo edita a avaliação existente. Ela aparece na hora no site, e o administrador pode
+  ocultá-la pelo admin (Cursos → Avaliações).
 
 ## Ambiente administrativo
 
@@ -126,6 +129,8 @@ Para recriar os grupos/permissões manualmente: `python3 manage.py configurar_pe
 | `/` | página inicial | público |
 | `/cursos/` | catálogo com busca e filtros (`?q=&categoria=&nivel=&preco=&ordem=`) | público |
 | `/cursos/<slug>/` | detalhes do curso | público |
+| `/cursos/<slug>/avaliar/` | cria ou edita a avaliação do aluno (POST) | aluno matriculado |
+| `/cursos/<slug>/avaliar/excluir/` | remove a avaliação do aluno (POST) | aluno matriculado |
 | `/comprar/<slug>/` | cria o pedido (POST) | logado |
 | `/pedidos/`, `/pedidos/<id>/` | pedidos do cliente, cupom e pagamento simulado | logado |
 | `/meus-cursos/`, `/meus-cursos/<slug>/` | área do aluno | logado |
