@@ -98,3 +98,45 @@ class AdminVendedorTestCase(TestCase):
             resposta = self.client.get(url)
             self.assertEqual(resposta.status_code, 200, url)
         self.assertContains(self.client.get("/admin/cursos/curso/"), "Curso de v2")
+
+
+class VendedorEditaCursoNoAdminTestCase(TestCase):
+    """O vendedor edita o curso no admin sem conseguir publicar sozinho e sem tirar do ar sem querer."""
+
+    def setUp(self):
+        categoria = Categoria.objects.create(nome="Design")
+        self.vendedor = User.objects.create_user(username="vend", password="SenhaForte#2026")
+        self.vendedor.perfil.tipo = "VENDEDOR"
+        self.vendedor.perfil.save()
+        self.categoria = categoria
+        self.client.login(username="vend", password="SenhaForte#2026")
+
+    def dados(self, curso, **extra):
+        dados = {"titulo": curso.titulo, "slug": curso.slug, "subtitulo": "", "categoria": self.categoria.pk,
+                 "descricao": "Nova descrição", "objetivos": "", "requisitos": "", "nivel": "INICIANTE",
+                 "idioma": "PT", "emite_certificado": "on", "preco": "50.00", "preco_promocional": "",
+                 "video_apresentacao": "", "status": curso.status,
+                 "modulos-TOTAL_FORMS": "0", "modulos-INITIAL_FORMS": "0",
+                 "modulos-MIN_NUM_FORMS": "0", "modulos-MAX_NUM_FORMS": "1000",
+                 "avaliacoes-TOTAL_FORMS": "0", "avaliacoes-INITIAL_FORMS": "0",
+                 "avaliacoes-MIN_NUM_FORMS": "0", "avaliacoes-MAX_NUM_FORMS": "1000"}
+        dados.update(extra)
+        return dados
+
+    def test_editar_curso_publicado_mantem_publicado(self):
+        curso = Curso.objects.create(titulo="Curso Publicado", descricao="x", vendedor=self.vendedor,
+                                     categoria=self.categoria, preco=50, status="PUBLICADO")
+        formulario = self.client.get(f"/admin/cursos/curso/{curso.pk}/change/").content.decode()
+        self.assertIn('value="PUBLICADO" selected', formulario)
+        resposta = self.client.post(f"/admin/cursos/curso/{curso.pk}/change/", self.dados(curso))
+        self.assertEqual(resposta.status_code, 302)
+        curso.refresh_from_db()
+        self.assertEqual(curso.status, "PUBLICADO")
+        self.assertEqual(curso.descricao, "Nova descrição")
+
+    def test_vendedor_nao_publica_rascunho(self):
+        curso = Curso.objects.create(titulo="Rascunho", descricao="x", vendedor=self.vendedor,
+                                     categoria=self.categoria, preco=50)
+        self.client.post(f"/admin/cursos/curso/{curso.pk}/change/", self.dados(curso, status="PUBLICADO"))
+        curso.refresh_from_db()
+        self.assertEqual(curso.status, "RASCUNHO")

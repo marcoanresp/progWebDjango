@@ -3,35 +3,117 @@
 {% block titulo %}EduMarket - Cursos online{% endblock %}
 
 {% block conteudo %}
-    <section class="p-5 mb-4 bg-body-tertiary rounded-3">
-        <h1 class="display-6 fw-bold">Aprenda com quem faz</h1>
-        <p class="lead">Cursos online de profissionais independentes. Compre, estude no seu ritmo ou venda o seu próprio curso.</p>
-        <form class="d-flex gap-2" action="{% url 'cursos' %}" method="get">
-            <input class="form-control" type="search" name="q" placeholder="O que você quer aprender?">
-            <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i></button>
-        </form>
+    <!-- Apresentação -->
+    <section class="hero rounded-4 p-4 p-md-5 mb-5">
+        <div class="row align-items-center g-4">
+            <div class="col-lg-7">
+                <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis mb-3"><i class="fas fa-rocket me-1"></i> Aprenda no seu ritmo</span>
+                <h1 class="display-5 fw-bold">Aprenda com quem faz.</h1>
+                <p class="lead text-body-secondary">Cursos online de profissionais independentes em programação, design, marketing, negócios e idiomas.</p>
+                <form class="busca-hero mt-4" action="{% url 'cursos' %}" method="get" role="search">
+                    <div class="input-group input-group-lg shadow-sm">
+                        <span class="input-group-text bg-body d-none d-sm-flex"><i class="fas fa-search text-body-secondary"></i></span>
+                        <input class="form-control" type="search" name="q" placeholder="Buscar cursos" aria-label="Buscar cursos">
+                        <button class="btn btn-primary px-4" type="submit">Buscar</button>
+                    </div>
+                </form>
+                {% if not user.is_authenticated %}
+                    <p class="small text-body-secondary mt-3 mb-0">É professor ou especialista? <a href="{% url 'cadastro' %}">Cadastre-se como vendedor</a> e publique seu curso.</p>
+                {% endif %}
+            </div>
+            <div class="col-lg-5">
+                <div class="row g-3 text-center">
+                    <div class="col-4 col-lg-12">
+                        <div class="card border-0 shadow-sm h-100"><div class="card-body px-2 py-3">
+                            <div class="fs-2 fw-bold text-primary">{{ estatisticas.cursos }}</div>
+                            <div class="small text-body-secondary">cursos</div>
+                        </div></div>
+                    </div>
+                    <div class="col-4 col-lg-6">
+                        <div class="card border-0 shadow-sm h-100"><div class="card-body px-2 py-3">
+                            <div class="fs-2 fw-bold text-primary">{{ estatisticas.alunos }}</div>
+                            <div class="small text-body-secondary">alunos</div>
+                        </div></div>
+                    </div>
+                    <div class="col-4 col-lg-6">
+                        <div class="card border-0 shadow-sm h-100"><div class="card-body px-2 py-3">
+                            <div class="fs-2 fw-bold text-primary">{{ estatisticas.vendedores }}</div>
+                            <div class="small text-body-secondary">instrutores</div>
+                        </div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </section>
 
-    <h4 class="mb-3">Categorias</h4>
-    <div class="d-flex flex-wrap gap-2 mb-4">
-        {% for categoria in categorias %}
-            <a class="btn btn-outline-primary" href="{% url 'cursos' %}?categoria={{ categoria.slug }}"><i class="{{ categoria.icone }}"></i> {{ categoria.nome }}</a>
-        {% endfor %}
-    </div>
+    <!-- Categorias -->
+    <section class="mb-5">
+        <div class="d-flex justify-content-between align-items-end mb-3">
+            <h2 class="h4 fw-bold mb-0">Explore por categoria</h2>
+            <a href="{% url 'cursos' %}" class="small">Ver todos os cursos <i class="fas fa-arrow-right"></i></a>
+        </div>
+        <div class="row row-cols-2 row-cols-md-3 row-cols-xl-6 g-3">
+            {% for categoria in categorias %}
+                <div class="col">
+                    <a href="{% url 'cursos' %}?categoria={{ categoria.slug }}" class="card card-categoria h-100 text-decoration-none border shadow-sm">
+                        <div class="card-body d-flex flex-column align-items-start gap-2">
+                            <span class="icone-circulo"><i class="{{ categoria.icone|default:'fas fa-book' }}"></i></span>
+                            <span class="fw-semibold text-body">{{ categoria.nome }}</span>
+                            <span class="small text-body-secondary">{{ categoria.qtd_cursos }} curso{{ categoria.qtd_cursos|pluralize }}</span>
+                        </div>
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
 
     {% if destaques %}
-        <h4 class="mb-3">Em destaque</h4>
-        <div class="row">
-            {% for curso in destaques %}{% include "_card_curso.html" %}{% endfor %}
-        </div>
+        <section class="mb-5">
+            <h2 class="h4 fw-bold mb-3"><i class="fas fa-bolt text-warning me-1"></i> Em destaque</h2>
+            <div class="row g-4">
+                {% for curso in destaques %}{% include "_card_curso.html" %}{% endfor %}
+            </div>
+        </section>
     {% endif %}
 
-    <h4 class="mb-3">Lançamentos</h4>
-    <div class="row">
-        {% for curso in recentes %}
-            {% include "_card_curso.html" %}
-        {% empty %}
-            <p>Nenhum curso publicado ainda.</p>
-        {% endfor %}
-    </div>
+    <section class="mb-5">
+        <div class="d-flex justify-content-between align-items-end mb-3">
+            <h2 class="h4 fw-bold mb-0">Lançamentos</h2>
+            <a href="{% url 'cursos' %}?ordem=recentes" class="small">Ver mais <i class="fas fa-arrow-right"></i></a>
+        </div>
+        <div class="row g-4">
+            {% for curso in recentes %}
+                {% include "_card_curso.html" %}
+            {% empty %}
+                <div class="col-12"><div class="estado-vazio text-center p-5 text-body-secondary">Nenhum curso publicado ainda.</div></div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Como funciona -->
+    <section class="bg-body-tertiary border rounded-4 p-4 p-md-5">
+        <h2 class="h4 fw-bold text-center mb-4">Como funciona</h2>
+        <div class="row g-4 text-center">
+            <div class="col-md-4">
+                <span class="passo-numero mb-3">1</span>
+                <h3 class="h6 fw-bold">Crie sua conta</h3>
+                <p class="small text-body-secondary mb-0">Cadastre-se como cliente para estudar ou como vendedor para publicar seus cursos.</p>
+            </div>
+            <div class="col-md-4">
+                <span class="passo-numero mb-3">2</span>
+                <h3 class="h6 fw-bold">Escolha e compre</h3>
+                <p class="small text-body-secondary mb-0">Pague com PIX, cartão ou boleto e use cupons de desconto.</p>
+            </div>
+            <div class="col-md-4">
+                <span class="passo-numero mb-3">3</span>
+                <h3 class="h6 fw-bold">Estude e avalie</h3>
+                <p class="small text-body-secondary mb-0">Acesse as aulas quando quiser, acompanhe seu progresso e avalie o curso.</p>
+            </div>
+        </div>
+        {% if not user.is_authenticated %}
+            <div class="text-center mt-4">
+                <a href="{% url 'cadastro' %}" class="btn btn-primary btn-lg">Começar agora</a>
+            </div>
+        {% endif %}
+    </section>
 {% endblock %}

@@ -1,14 +1,19 @@
+from decimal import Decimal
+
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Avg, Count, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView, TemplateView
 
+from .filters import subquery_receita_curso
 from .forms import AvaliacaoForm
-from .models import Avaliacao, Categoria, Curso, Matricula
+from .models import Aula, Avaliacao, Categoria, Curso, Matricula, ProgressoAula
 
 ORDENACOES = {
     "recentes": "-publicado_em",
@@ -54,9 +59,26 @@ class PrincipalView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["destaques"] = cursos_publicados().filter(destaque=True)[:6]
-        context["recentes"] = cursos_publicados().order_by("-publicado_em")[:6]
-        context["categorias"] = Categoria.objects.filter(ativa=True, categoria_pai__isnull=True)
+        destaques = list(cursos_publicados().filter(destaque=True)[:6])
+        context["destaques"] = destaques
+        # Lançamentos: os mais recentes que ainda não aparecem em "Em destaque"
+        context["recentes"] = (cursos_publicados().exclude(pk__in=[c.pk for c in destaques])
+                               .order_by("-publicado_em")[:6])
+
+        # Categorias principais com a quantidade de cursos publicados (incluindo as subcategorias)
+        categorias = list(Categoria.objects.filter(ativa=True, categoria_pai__isnull=True))
+        for categoria in categorias:
+            categoria.qtd_cursos = Curso.objects.filter(
+                Q(categoria=categoria) | Q(categoria__categoria_pai=categoria),
+                status=Curso.Status.PUBLICADO).count()
+        context["categorias"] = categorias
+
+        publicados = Curso.objects.filter(status=Curso.Status.PUBLICADO)
+        context["estatisticas"] = {
+            "cursos": publicados.count(),
+            "alunos": Matricula.objects.filter(ativa=True).values("aluno").distinct().count(),
+            "vendedores": publicados.values("vendedor").distinct().count(),
+        }
         return context
 
 
@@ -91,6 +113,17 @@ class CursoDetailView(DetailView):
         matriculado = usuario.is_authenticated and \
             Matricula.objects.filter(aluno=usuario, curso=curso, ativa=True).exists()
         context["matriculado"] = matriculado
+        context["objetivos"] = [linha.strip() for linha in curso.objetivos.splitlines() if linha.strip()]
+        context["requisitos"] = [linha.strip() for linha in curso.requisitos.splitlines() if linha.strip()]
+
+        # Dados do instrutor (vendedor) para o cartão "Sobre o instrutor"
+        cursos_do_vendedor = Curso.objects.filter(vendedor=curso.vendedor, status=Curso.Status.PUBLICADO)
+        context["instrutor"] = {
+            "perfil": getattr(curso.vendedor, "perfil", None),
+            "cursos": cursos_do_vendedor.count(),
+            "alunos": Matricula.objects.filter(curso__in=cursos_do_vendedor, ativa=True)
+                                       .values("aluno").distinct().count(),
+        }
 
         # Avaliações públicas (aprovadas). A do próprio aluno aparece separada, no formulário.
         aprovadas = curso.avaliacoes.filter(aprovada=True)
@@ -120,6 +153,34 @@ def resumo_avaliacoes(avaliacoes):
             for nota in range(5, 0, -1)
         ],
     }
+
+
+@login_required
+@require_POST
+def marcar_aula(request, slug, aula_id):
+    """
+    Marca (ou desmarca) uma aula como concluída para o aluno logado.
+    Quando todas as aulas estão concluídas, a matrícula recebe a data de conclusão.
+    """
+    matricula = get_object_or_404(Matricula, aluno=request.user, curso__slug=slug, ativa=True)
+    aula = get_object_or_404(Aula, pk=aula_id, modulo__curso=matricula.curso)
+
+    progresso = ProgressoAula.objects.filter(matricula=matricula, aula=aula).first()
+    if progresso:
+        progresso.delete()          # já estava concluída: desmarca
+    else:
+        ProgressoAula.objects.create(matricula=matricula, aula=aula)
+
+    total = matricula.curso.total_aulas
+    concluidas = matricula.progressos.filter(concluida=True).count()
+    if total and concluidas == total and matricula.concluida_em is None:
+        matricula.concluida_em = timezone.now()
+        matricula.save(update_fields=["concluida_em"])
+        messages.success(request, "Parabéns! Você concluiu o curso.")
+    elif concluidas < total and matricula.concluida_em is not None:
+        matricula.concluida_em = None
+        matricula.save(update_fields=["concluida_em"])
+    return redirect(reverse("assistir_curso", args=[slug]) + f"#aula{aula.pk}")
 
 
 @login_required
@@ -211,7 +272,20 @@ class PainelVendedorView(VendedorRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["cursos"] = (Curso.objects.filter(vendedor=self.request.user)
-                             .annotate(n_alunos=Count("matriculas", filter=Q(matriculas__ativa=True), distinct=True),
-                                       media_nota=Avg("avaliacoes__nota")))
+        cursos = (Curso.objects.filter(vendedor=self.request.user)
+                  .annotate(n_alunos=Count("matriculas", filter=Q(matriculas__ativa=True), distinct=True),
+                            media_nota=Avg("avaliacoes__nota", filter=Q(avaliacoes__aprovada=True)),
+                            receita=subquery_receita_curso()))
+        context["cursos"] = cursos
+        receita_bruta = sum((c.receita or Decimal("0")) for c in cursos)
+        taxa = Decimal(str(settings.TAXA_PLATAFORMA))
+        media = Avaliacao.objects.filter(curso__vendedor=self.request.user, aprovada=True).aggregate(m=Avg("nota"))["m"]
+        context["indicadores"] = {
+            "publicados": sum(1 for c in cursos if c.status == Curso.Status.PUBLICADO),
+            "em_revisao": sum(1 for c in cursos if c.status == Curso.Status.EM_REVISAO),
+            "alunos": sum(c.n_alunos for c in cursos),
+            "receita_liquida": receita_bruta * (1 - taxa),
+            "nota_media": media,
+            "taxa_percentual": int(taxa * 100),
+        }
         return context

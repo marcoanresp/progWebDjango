@@ -181,3 +181,47 @@ class AvaliacaoSiteTestCase(TestCase):
         self.assertEqual(resumo["total"], 2)
         self.assertEqual(resumo["estrelas"][0], {"nota": 5, "qtd": 1, "porcentagem": 50})
         self.assertContains(resposta, "2 avaliações")
+
+
+class ProgressoAulaTestCase(TestCase):
+    """Aluno marcando aulas como concluídas na sala de aula."""
+
+    def setUp(self):
+        vendedor = criar_vendedor()
+        categoria = Categoria.objects.create(nome="Programação")
+        self.curso = Curso.objects.create(titulo="Curso Curto", descricao="x", vendedor=vendedor,
+                                          categoria=categoria, preco=10, status=Curso.Status.PUBLICADO)
+        modulo = Modulo.objects.create(curso=self.curso, titulo="Único", ordem=1)
+        self.aula1 = Aula.objects.create(modulo=modulo, titulo="A1", ordem=1)
+        self.aula2 = Aula.objects.create(modulo=modulo, titulo="A2", ordem=2)
+        self.aluno = User.objects.create_user(username="aluno", password="SenhaForte#2026")
+        self.matricula = Matricula.objects.create(aluno=self.aluno, curso=self.curso)
+        self.client.login(username="aluno", password="SenhaForte#2026")
+
+    def url(self, aula):
+        return reverse("marcar_aula", args=[self.curso.slug, aula.pk])
+
+    def test_concluir_todas_as_aulas_conclui_o_curso(self):
+        self.client.post(self.url(self.aula1))
+        self.assertEqual(self.matricula.progresso, 50)
+        self.client.post(self.url(self.aula2))
+        self.matricula.refresh_from_db()
+        self.assertEqual(self.matricula.progresso, 100)
+        self.assertTrue(self.matricula.concluida)
+
+    def test_desmarcar_aula(self):
+        self.client.post(self.url(self.aula1))
+        self.client.post(self.url(self.aula2))
+        self.client.post(self.url(self.aula2))  # desmarca
+        self.matricula.refresh_from_db()
+        self.assertEqual(self.matricula.progresso, 50)
+        self.assertFalse(self.matricula.concluida)
+
+    def test_aula_de_outro_curso_ou_sem_matricula(self):
+        outro = Curso.objects.create(titulo="Outro", descricao="x", vendedor=self.curso.vendedor,
+                                     categoria=self.curso.categoria, preco=10, status=Curso.Status.PUBLICADO)
+        aula_outra = Aula.objects.create(modulo=Modulo.objects.create(curso=outro, titulo="M", ordem=1), titulo="X")
+        resposta = self.client.post(reverse("marcar_aula", args=[self.curso.slug, aula_outra.pk]))
+        self.assertEqual(resposta.status_code, 404)
+        resposta = self.client.post(reverse("marcar_aula", args=[outro.slug, aula_outra.pk]))
+        self.assertEqual(resposta.status_code, 404)  # não está matriculado no outro curso

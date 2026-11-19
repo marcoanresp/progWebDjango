@@ -28,7 +28,7 @@ def login(request):
             return redirect('principal')
         else:
             messages.error(request, 'Usuário ou senha inválidos. Tente novamente.')
-            return render(request, 'login.html')
+            return render(request, 'login.html', {'usuario': usuario})
 
 
 def cadastro(request):
@@ -41,7 +41,8 @@ def cadastro(request):
         senha = request.POST.get('senha', '')
         confirmacao = request.POST.get('confirmacao', '')
         tipo = request.POST.get('tipo', Perfil.Tipo.CLIENTE)
-        contexto = {'tipos': Perfil.Tipo.choices}
+        # Em caso de erro, o formulário volta preenchido (menos as senhas)
+        contexto = {'tipos': Perfil.Tipo.choices, 'dados': request.POST}
 
         if tipo not in Perfil.Tipo.values:
             tipo = Perfil.Tipo.CLIENTE

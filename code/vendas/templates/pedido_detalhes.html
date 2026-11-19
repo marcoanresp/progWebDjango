@@ -3,39 +3,94 @@
 {% block titulo %}Pedido #{{ pedido.numero }} - EduMarket{% endblock %}
 
 {% block conteudo %}
-    <h2>Pedido #{{ pedido.numero }} <span class="badge text-bg-secondary fs-6 align-middle">{{ pedido.get_status_display }}</span></h2>
-    <table class="table mt-3">
-        <thead><tr><th>Curso</th><th class="text-end">Preço</th><th class="text-end">Desconto</th></tr></thead>
-        <tbody>
-        {% for item in pedido.itens.all %}
-            <tr><td>{{ item.curso.titulo }}</td><td class="text-end">R$ {{ item.preco_unitario }}</td><td class="text-end">R$ {{ item.desconto }}</td></tr>
-        {% endfor %}
-        </tbody>
-        <tfoot>
-            <tr><th>Subtotal</th><td colspan="2" class="text-end">R$ {{ pedido.subtotal }}</td></tr>
-            <tr><th>Desconto {% if pedido.cupom %}({{ pedido.cupom.codigo }}){% endif %}</th><td colspan="2" class="text-end">- R$ {{ pedido.desconto }}</td></tr>
-            <tr><th>Total</th><td colspan="2" class="text-end fw-bold">R$ {{ pedido.total }}</td></tr>
-        </tfoot>
-    </table>
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="{% url 'meus_pedidos' %}">Meus pedidos</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Pedido #{{ pedido.numero }}</li>
+        </ol>
+    </nav>
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
+        <h1 class="h3 fw-bold mb-0">Pedido #{{ pedido.numero }}</h1>
+        <span class="badge text-bg-{{ pedido.cor_status }} fs-6">{{ pedido.get_status_display }}</span>
+    </div>
 
-    {% if pedido.status == "PENDENTE" %}
-        <div class="row g-3">
-            <div class="col-md-6">
-                <form class="d-flex gap-2" method="post" action="{% url 'aplicar_cupom' pedido.pk %}">
-                    {% csrf_token %}
-                    <input class="form-control" name="cupom" placeholder="Cupom de desconto">
-                    <button class="btn btn-outline-secondary" type="submit">Aplicar</button>
-                </form>
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-body fw-semibold">Cursos</div>
+                <ul class="list-group list-group-flush">
+                    {% for item in pedido.itens.all %}
+                        <li class="list-group-item d-flex align-items-center gap-3">
+                            <img src="{{ item.curso.imagem.url }}" alt="" class="rounded" style="width:80px;height:45px;object-fit:cover;">
+                            <div class="flex-grow-1">
+                                <a href="{% url 'curso_detalhes' item.curso.slug %}" class="fw-semibold text-body text-decoration-none">{{ item.curso.titulo }}</a>
+                                {% if item.desconto %}<div class="small text-success">Desconto de R$ {{ item.desconto }}</div>{% endif %}
+                            </div>
+                            <span class="text-nowrap">R$ {{ item.preco_unitario }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
             </div>
-            <div class="col-md-6">
-                <form class="d-flex gap-2" method="post" action="{% url 'pagar' pedido.pk %}">
-                    {% csrf_token %}
-                    <select class="form-select" name="forma_pagamento">
-                        {% for valor, nome in formas_pagamento %}<option value="{{ valor }}">{{ nome }}</option>{% endfor %}
-                    </select>
-                    <button class="btn btn-success text-nowrap" type="submit">Pagar (simulado)</button>
-                </form>
+
+            {% if pedido.status == "PENDENTE" %}
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h2 class="h6 fw-bold">Tem um cupom de desconto?</h2>
+                        <form class="input-group" method="post" action="{% url 'aplicar_cupom' pedido.pk %}">
+                            {% csrf_token %}
+                            <span class="input-group-text"><i class="fas fa-ticket-alt"></i></span>
+                            <input class="form-control text-uppercase" name="cupom" placeholder="Ex.: BEMVINDO10" aria-label="Código do cupom" value="{{ pedido.cupom.codigo|default:'' }}">
+                            <button class="btn btn-outline-primary" type="submit">Aplicar</button>
+                        </form>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h2 class="h6 fw-bold mb-3">Resumo</h2>
+                    <dl class="row small mb-0">
+                        <dt class="col-6 fw-normal">Subtotal</dt><dd class="col-6 text-end">R$ {{ pedido.subtotal }}</dd>
+                        <dt class="col-6 fw-normal">Desconto {% if pedido.cupom %}<span class="badge bg-success-subtle text-success-emphasis">{{ pedido.cupom.codigo }}</span>{% endif %}</dt>
+                        <dd class="col-6 text-end text-success">- R$ {{ pedido.desconto }}</dd>
+                    </dl>
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-baseline mb-3">
+                        <span class="fw-semibold">Total</span>
+                        <span class="fs-3 fw-bold">R$ {{ pedido.total }}</span>
+                    </div>
+
+                    {% if pedido.status == "PENDENTE" %}
+                        <form method="post" action="{% url 'pagar' pedido.pk %}">
+                            {% csrf_token %}
+                            <fieldset class="mb-3">
+                                <legend class="form-label fs-6 fw-semibold">Forma de pagamento</legend>
+                                <div class="d-grid gap-2">
+                                    {% for valor, nome in formas_pagamento %}
+                                        <input type="radio" class="btn-check" name="forma_pagamento" id="forma{{ valor }}" value="{{ valor }}" autocomplete="off" {% if valor == pedido.forma_pagamento %}checked{% endif %}>
+                                        <label class="card opcao-cartao border-2" for="forma{{ valor }}">
+                                            <span class="card-body py-2 d-flex align-items-center gap-2">
+                                                {% if valor == 'PIX' %}<i class="fas fa-qrcode fa-fw"></i>{% elif valor == 'CARTAO' %}<i class="fas fa-credit-card fa-fw"></i>{% else %}<i class="fas fa-barcode fa-fw"></i>{% endif %}
+                                                {{ nome }}
+                                            </span>
+                                        </label>
+                                    {% endfor %}
+                                </div>
+                            </fieldset>
+                            <button class="btn btn-success btn-lg w-100" type="submit"><i class="fas fa-lock me-1"></i> Pagar (simulado)</button>
+                            <p class="small text-body-secondary text-center mt-2 mb-0">Projeto acadêmico: nenhum valor é cobrado.</p>
+                        </form>
+                    {% else %}
+                        <ul class="list-unstyled small text-body-secondary mb-0">
+                            <li>Criado em {{ pedido.criado_em|date:"d/m/Y H:i" }}</li>
+                            {% if pedido.pago_em %}<li>Pago em {{ pedido.pago_em|date:"d/m/Y H:i" }} via {{ pedido.get_forma_pagamento_display }}</li>{% endif %}
+                        </ul>
+                        {% if pedido.status == "PAGO" %}<a href="{% url 'meus_cursos' %}" class="btn btn-primary w-100 mt-3">Ir para meus cursos</a>{% endif %}
+                    {% endif %}
+                </div>
             </div>
         </div>
-    {% endif %}
+    </div>
 {% endblock %}

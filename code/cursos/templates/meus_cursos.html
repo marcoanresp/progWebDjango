@@ -3,23 +3,46 @@
 {% block titulo %}Meus cursos - EduMarket{% endblock %}
 
 {% block conteudo %}
-    <h2 class="mb-3">Meus cursos</h2>
-    <div class="row">
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
+        <div>
+            <h1 class="h3 fw-bold mb-1">Meus cursos</h1>
+            <p class="text-body-secondary mb-0">Continue de onde parou.</p>
+        </div>
+        <a href="{% url 'cursos' %}" class="btn btn-outline-primary btn-sm"><i class="fas fa-plus me-1"></i> Encontrar novos cursos</a>
+    </div>
+
+    <div class="row g-4">
         {% for matricula in matriculas %}
-            <div class="col-sm-6 col-lg-4 mb-4">
-                <div class="card h-100">
-                    <img src="{{ matricula.curso.imagem.url }}" class="card-img-top" alt="{{ matricula.curso.titulo }}">
-                    <div class="card-body">
-                        <h5 class="card-title">{{ matricula.curso.titulo }}</h5>
-                        <div class="progress mb-2" role="progressbar" aria-valuenow="{{ matricula.progresso }}" aria-valuemin="0" aria-valuemax="100">
-                            <div class="progress-bar bg-success" style="width: {{ matricula.progresso }}%">{{ matricula.progresso }}%</div>
+            <div class="col-sm-6 col-lg-4">
+                <div class="card h-100 border-0 shadow-sm overflow-hidden">
+                    <img src="{{ matricula.curso.imagem.url }}" class="capa-curso" alt="Capa do curso {{ matricula.curso.titulo }}">
+                    <div class="card-body d-flex flex-column">
+                        <h2 class="h6 fw-semibold">{{ matricula.curso.titulo }}</h2>
+                        <p class="small text-body-secondary mb-3">{{ matricula.curso.vendedor.get_full_name|default:matricula.curso.vendedor.username }}</p>
+                        <div class="mt-auto">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span>{% if matricula.concluida %}<i class="fas fa-trophy text-warning me-1"></i>Concluído{% else %}Progresso{% endif %}</span>
+                                <span class="fw-semibold">{{ matricula.progresso }}%</span>
+                            </div>
+                            <div class="progress mb-3" style="height: 8px;" role="progressbar" aria-label="Progresso do curso" aria-valuenow="{{ matricula.progresso }}" aria-valuemin="0" aria-valuemax="100">
+                                <div class="progress-bar bg-success" style="width: {{ matricula.progresso }}%"></div>
+                            </div>
+                            <a href="{% url 'assistir_curso' matricula.curso.slug %}" class="btn btn-primary w-100">
+                                {% if matricula.progresso == 0 %}Começar{% else %}Continuar{% endif %}
+                            </a>
                         </div>
-                        <a href="{% url 'assistir_curso' matricula.curso.slug %}" class="btn btn-primary btn-sm">Continuar</a>
                     </div>
                 </div>
             </div>
         {% empty %}
-            <p>Você ainda não possui cursos. <a href="{% url 'cursos' %}">Explore o catálogo</a>.</p>
+            <div class="col-12">
+                <div class="estado-vazio text-center p-5">
+                    <i class="fas fa-user-graduate fa-2x text-body-secondary mb-3"></i>
+                    <h2 class="h5">Você ainda não tem cursos</h2>
+                    <p class="text-body-secondary">Explore o catálogo e comece a aprender hoje mesmo.</p>
+                    <a href="{% url 'cursos' %}" class="btn btn-primary">Explorar cursos</a>
+                </div>
+            </div>
         {% endfor %}
     </div>
 {% endblock %}

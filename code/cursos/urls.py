@@ -12,6 +12,7 @@ urlpatterns = [
     path('cursos/<slug:slug>/avaliar/excluir/', views.excluir_avaliacao, name='excluir_avaliacao'),
     path('meus-cursos/', MeusCursosView.as_view(), name='meus_cursos'),
     path('meus-cursos/<slug:slug>/', AssistirCursoView.as_view(), name='assistir_curso'),
+    path('meus-cursos/<slug:slug>/aulas/<int:aula_id>/concluir/', views.marcar_aula, name='marcar_aula'),
     path('vendedor/', PainelVendedorView.as_view(), name='painel_vendedor'),
 
     # API JSON (frontend Vue)

@@ -137,6 +137,12 @@ class Curso(models.Model):
     def get_absolute_url(self):
         return reverse("curso_detalhes", args=[self.slug])
 
+    @property
+    def cor_status(self):
+        """Cor do Bootstrap usada para exibir o status (badge) nos templates."""
+        return {"RASCUNHO": "secondary", "EM_REVISAO": "warning",
+                "PUBLICADO": "success", "ARQUIVADO": "dark"}.get(self.status, "secondary")
+
     # ----- Propriedades calculadas -----
     @property
     def preco_atual(self):

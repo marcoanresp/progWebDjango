@@ -5,79 +5,151 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>{% block titulo %}EduMarket{% endblock %}</title>
+        <!-- O script do tema vem primeiro para a página já abrir no tema certo, sem "piscar" -->
         <script src="{% static 'js/tema.js' %}"></script>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+        <!-- Bootstrap 5.3 e Font Awesome ficam dentro do projeto (static/vendor): funcionam sem internet -->
+        <link rel="stylesheet" href="{% static 'vendor/bootstrap/css/bootstrap.min.css' %}">
+        <link rel="stylesheet" href="{% static 'vendor/fontawesome/css/all.min.css' %}">
         <link rel="stylesheet" href="{% static 'css/styles.css' %}">
     </head>
     <body class="d-flex flex-column min-vh-100">
+        {% with pagina=request.resolver_match.url_name %}
         <header>
-            <nav class="navbar navbar-expand-lg bg-primary" data-bs-theme="dark">
+            <nav class="navbar navbar-expand-lg bg-body border-bottom shadow-sm sticky-top">
                 <div class="container">
-                    <a class="navbar-brand fw-bold" href="{% url 'principal' %}"><i class="fas fa-graduation-cap"></i> EduMarket</a>
+                    <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="{% url 'principal' %}">
+                        <span class="marca-icone"><i class="fas fa-graduation-cap"></i></span> EduMarket
+                    </a>
                     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Abrir menu">
                         <span class="navbar-toggler-icon"></span>
                     </button>
                     <div class="collapse navbar-collapse" id="navbarNav">
-                        <ul class="navbar-nav">
-                            <li class="nav-item"><a class="nav-link" href="{% url 'principal' %}"><i class="fas fa-home"></i> Início</a></li>
-                            <li class="nav-item"><a class="nav-link" href="{% url 'cursos' %}"><i class="fas fa-book-open"></i> Cursos</a></li>
+                        <ul class="navbar-nav me-auto">
+                            <li class="nav-item">
+                                <a class="nav-link {% if pagina == 'principal' %}active{% endif %}" {% if pagina == 'principal' %}aria-current="page"{% endif %} href="{% url 'principal' %}">Início</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {% if pagina == 'cursos' or pagina == 'curso_detalhes' %}active{% endif %}" href="{% url 'cursos' %}">Cursos</a>
+                            </li>
                             {% if user.is_authenticated %}
-                                <li class="nav-item"><a class="nav-link" href="{% url 'meus_cursos' %}"><i class="fas fa-user-graduate"></i> Meus cursos</a></li>
-                                <li class="nav-item"><a class="nav-link" href="{% url 'meus_pedidos' %}"><i class="fas fa-receipt"></i> Meus pedidos</a></li>
+                                <li class="nav-item">
+                                    <a class="nav-link {% if pagina == 'meus_cursos' or pagina == 'assistir_curso' %}active{% endif %}" href="{% url 'meus_cursos' %}">Meus cursos</a>
+                                </li>
                                 {% if user.perfil.eh_vendedor %}
-                                    <li class="nav-item"><a class="nav-link" href="{% url 'painel_vendedor' %}"><i class="fas fa-chalkboard-teacher"></i> Área do vendedor</a></li>
-                                {% endif %}
-                                {% if user.is_staff %}
-                                    <li class="nav-item"><a class="nav-link" href="/admin/"><i class="fas fa-lock"></i> Admin</a></li>
+                                    <li class="nav-item">
+                                        <a class="nav-link {% if pagina == 'painel_vendedor' %}active{% endif %}" href="{% url 'painel_vendedor' %}">Área do vendedor</a>
+                                    </li>
                                 {% endif %}
                             {% endif %}
                         </ul>
-                        <ul class="navbar-nav ms-auto align-items-lg-center">
+
+                        <form class="d-flex my-2 my-lg-0 me-lg-3" action="{% url 'cursos' %}" method="get" role="search">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-body"><i class="fas fa-search text-body-secondary"></i></span>
+                                <input class="form-control" type="search" name="q" placeholder="Buscar cursos" aria-label="Buscar cursos" value="{{ request.GET.q }}">
+                            </div>
+                        </form>
+
+                        <ul class="navbar-nav align-items-lg-center gap-lg-1">
                             <li class="nav-item">
-                                <button class="btn btn-link nav-link" id="botaoTema" type="button" title="Alternar tema claro/escuro">
+                                <button class="btn btn-link nav-link" id="botaoTema" type="button" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro">
                                     <i class="fas fa-moon"></i>
                                 </button>
                             </li>
                             {% if user.is_authenticated %}
                                 <li class="nav-item dropdown">
-                                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="fas fa-user-circle"></i> {{ user.first_name|default:user.username }}
+                                    <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        {% if user.perfil.foto %}
+                                            <img src="{{ user.perfil.foto.url }}" class="avatar-iniciais" alt="">
+                                        {% else %}
+                                            <span class="avatar-iniciais">{{ user.first_name|default:user.username|slice:":1"|upper }}</span>
+                                        {% endif %}
+                                        <span>{{ user.first_name|default:user.username }}</span>
                                     </a>
-                                    <ul class="dropdown-menu dropdown-menu-end">
-                                        <li><a class="dropdown-item" href="{% url 'perfil' %}"><i class="fas fa-id-card"></i> Meu perfil</a></li>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow">
+                                        <li><h6 class="dropdown-header">{{ user.perfil.get_tipo_display }}</h6></li>
+                                        <li><a class="dropdown-item" href="{% url 'perfil' %}"><i class="fas fa-id-card fa-fw me-2"></i>Meu perfil</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'meus_cursos' %}"><i class="fas fa-user-graduate fa-fw me-2"></i>Meus cursos</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'meus_pedidos' %}"><i class="fas fa-receipt fa-fw me-2"></i>Meus pedidos</a></li>
+                                        {% if user.is_staff %}
+                                            <li><a class="dropdown-item" href="/admin/"><i class="fas fa-lock fa-fw me-2"></i>Ambiente administrativo</a></li>
+                                        {% endif %}
                                         <li><hr class="dropdown-divider"></li>
-                                        <li><a class="dropdown-item" href="{% url 'logout' %}"><i class="fas fa-sign-out-alt"></i> Sair</a></li>
+                                        <li><a class="dropdown-item text-danger" href="{% url 'logout' %}"><i class="fas fa-sign-out-alt fa-fw me-2"></i>Sair</a></li>
                                     </ul>
                                 </li>
                             {% else %}
-                                <li class="nav-item"><a class="nav-link" href="{% url 'login' %}"><i class="fas fa-sign-in-alt"></i> Entrar</a></li>
-                                <li class="nav-item"><a class="btn btn-light btn-sm ms-lg-2" href="{% url 'cadastro' %}">Cadastre-se</a></li>
+                                <li class="nav-item"><a class="nav-link" href="{% url 'login' %}">Entrar</a></li>
+                                <li class="nav-item"><a class="btn btn-primary btn-sm ms-lg-1" href="{% url 'cadastro' %}">Cadastre-se</a></li>
                             {% endif %}
                         </ul>
                     </div>
                 </div>
             </nav>
         </header>
+        {% endwith %}
 
-        <main class="container my-4 flex-grow-1">
+        <main class="flex-grow-1">
             {% if messages %}
-                {% for message in messages %}
-                    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
-                    </div>
-                {% endfor %}
+                <div class="container mt-3">
+                    {% for message in messages %}
+                        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show d-flex align-items-center gap-2 shadow-sm" role="alert">
+                            {% if message.tags == 'success' %}<i class="fas fa-check-circle"></i>
+                            {% elif message.tags == 'error' %}<i class="fas fa-exclamation-circle"></i>
+                            {% elif message.tags == 'warning' %}<i class="fas fa-exclamation-triangle"></i>
+                            {% else %}<i class="fas fa-info-circle"></i>{% endif %}
+                            <div>{{ message }}</div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+                        </div>
+                    {% endfor %}
+                </div>
             {% endif %}
 
-            {% block conteudo %}
+            {% block conteudo_largo %}
+                <div class="container my-4">
+                    {% block conteudo %}
+                    {% endblock %}
+                </div>
             {% endblock %}
         </main>
 
-        <footer class="bg-body-tertiary text-center p-3 mt-auto">
-            <p class="mb-0">&copy; EduMarket. Todos os direitos reservados.</p>
+        <footer class="bg-body-tertiary border-top mt-5">
+            <div class="container py-4">
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <a class="fw-bold text-decoration-none text-body d-inline-flex align-items-center gap-2" href="{% url 'principal' %}">
+                            <span class="marca-icone" style="width:28px;height:28px;font-size:.85rem;"><i class="fas fa-graduation-cap"></i></span> EduMarket
+                        </a>
+                        <p class="small text-body-secondary mt-2 mb-0">Cursos online de profissionais independentes. Aprenda no seu ritmo ou venda o seu próprio curso.</p>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <h6 class="text-uppercase small fw-bold">Explorar</h6>
+                        <ul class="list-unstyled small mb-0">
+                            <li><a class="link-secondary text-decoration-none" href="{% url 'cursos' %}">Todos os cursos</a></li>
+                            <li><a class="link-secondary text-decoration-none" href="{% url 'cursos' %}?preco=gratuito">Cursos gratuitos</a></li>
+                            <li><a class="link-secondary text-decoration-none" href="{% url 'cursos' %}?ordem=avaliados">Mais bem avaliados</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <h6 class="text-uppercase small fw-bold">Sua conta</h6>
+                        <ul class="list-unstyled small mb-0">
+                            {% if user.is_authenticated %}
+                                <li><a class="link-secondary text-decoration-none" href="{% url 'meus_cursos' %}">Meus cursos</a></li>
+                                <li><a class="link-secondary text-decoration-none" href="{% url 'meus_pedidos' %}">Meus pedidos</a></li>
+                                <li><a class="link-secondary text-decoration-none" href="{% url 'perfil' %}">Meu perfil</a></li>
+                            {% else %}
+                                <li><a class="link-secondary text-decoration-none" href="{% url 'login' %}">Entrar</a></li>
+                                <li><a class="link-secondary text-decoration-none" href="{% url 'cadastro' %}">Cadastre-se</a></li>
+                                <li><a class="link-secondary text-decoration-none" href="{% url 'cadastro' %}">Quero vender cursos</a></li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+                <hr>
+                <p class="small text-body-secondary text-center mb-0">&copy; EduMarket - Universidade Federal de Lavras. Projeto acadêmico.</p>
+            </div>
         </footer>
 
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
     </body>
 </html>

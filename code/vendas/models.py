@@ -127,6 +127,12 @@ class Pedido(models.Model):
         return f"Pedido #{self.numero} - {self.cliente.username}"
 
     @property
+    def cor_status(self):
+        """Cor do Bootstrap usada para exibir o status (badge) nos templates."""
+        return {"PENDENTE": "warning", "PAGO": "success",
+                "CANCELADO": "secondary", "REEMBOLSADO": "danger"}.get(self.status, "secondary")
+
+    @property
     def numero(self):
         return f"{self.pk:06d}" if self.pk else "------"
 

@@ -159,11 +159,17 @@ class CursoAdmin(VendedorRestritoMixin, admin.ModelAdmin):
             campos += ["vendedor", "destaque"]  # vendedor não escolhe dono nem destaque
         return campos
 
-    def formfield_for_choice_field(self, db_field, request, **kwargs):
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
         # O vendedor não publica direto: envia para revisão e o administrador publica.
-        if db_field.name == "status" and eh_vendedor(request):
-            kwargs["choices"] = [c for c in Curso.Status.choices if c[0] != Curso.Status.PUBLICADO]
-        return super().formfield_for_choice_field(db_field, request, **kwargs)
+        # Se o curso JÁ está publicado, a opção "Publicado" continua disponível; assim, ao
+        # editar a descrição ou o preço, o curso não sai do ar sem querer.
+        if eh_vendedor(request) and "status" in form.base_fields:
+            ja_publicado = obj is not None and obj.status == Curso.Status.PUBLICADO
+            form.base_fields["status"].choices = [
+                c for c in Curso.Status.choices if c[0] != Curso.Status.PUBLICADO or ja_publicado
+            ]
+        return form
 
     def save_model(self, request, obj, form, change):
         if eh_vendedor(request) and not change:

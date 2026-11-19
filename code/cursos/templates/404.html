@@ -4,8 +4,10 @@
 
 {% block conteudo %}
     <div class="text-center py-5">
-        <h1 class="display-4">404</h1>
-        <p class="lead">A página que você procura não existe.</p>
-        <a href="/" class="btn btn-primary">Voltar ao início</a>
+        <div class="display-1 fw-bold text-primary">404</div>
+        <h1 class="h3">Página não encontrada</h1>
+        <p class="text-body-secondary">O endereço que você procura não existe ou o curso não está mais disponível.</p>
+        <a href="{% url 'principal' %}" class="btn btn-primary me-2">Voltar ao início</a>
+        <a href="{% url 'cursos' %}" class="btn btn-outline-primary">Ver cursos</a>
     </div>
 {% endblock %}

@@ -1,23 +1,44 @@
-<div class="col-sm-6 col-lg-4 mb-4">
-    <div class="card h-100 card-curso">
-        <img src="{{ curso.imagem.url }}" class="card-img-top" alt="{{ curso.titulo }}">
-        <div class="card-body d-flex flex-column">
-            <span class="badge text-bg-secondary align-self-start mb-2">{{ curso.categoria.nome }}</span>
-            <h5 class="card-title"><a href="{% url 'curso_detalhes' curso.slug %}" class="stretched-link text-decoration-none">{{ curso.titulo }}</a></h5>
-            <p class="card-text small text-body-secondary">{{ curso.vendedor.get_full_name|default:curso.vendedor.username }}</p>
-            <div class="mt-auto d-flex justify-content-between align-items-center">
-                <span>
-                    {% if curso.media_nota %}<i class="fas fa-star text-warning"></i> {{ curso.media_nota|floatformat:1 }}{% endif %}
-                    <small class="text-body-secondary">({{ curso.n_alunos }} alunos)</small>
-                </span>
-                <span class="fw-bold">
-                    {% if curso.gratuito %}Gratuito
-                    {% else %}
-                        {% if curso.em_promocao %}<s class="text-body-secondary small">R$ {{ curso.preco }}</s>{% endif %}
-                        R$ {{ curso.preco_atual }}
-                    {% endif %}
-                </span>
+{% comment %}
+    Cartão de curso reutilizado na página inicial e no catálogo.
+    Uso: {% include "_card_curso.html" %} dentro de um laço com a variável "curso".
+{% endcomment %}
+<div class="col-sm-6 col-lg-4 {% if colunas_xl %}col-xl-3{% endif %}">
+    <article class="card h-100 card-curso border-0 shadow-sm overflow-hidden">
+        <div class="position-relative">
+            <img src="{{ curso.imagem.url }}" class="card-img-top" alt="Capa do curso {{ curso.titulo }}" loading="lazy">
+            <div class="selos">
+                {% if curso.gratuito %}<span class="badge text-bg-success">Gratuito</span>
+                {% elif curso.em_promocao %}<span class="badge text-bg-danger">Promoção</span>{% endif %}
+                {% if curso.destaque %}<span class="badge text-bg-warning"><i class="fas fa-bolt"></i> Destaque</span>{% endif %}
             </div>
         </div>
-    </div>
+        <div class="card-body d-flex flex-column">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-1 mb-2 small">
+                <span class="badge bg-primary-subtle text-primary-emphasis">{{ curso.categoria.nome }}</span>
+                <span class="text-body-secondary text-nowrap">{{ curso.get_nivel_display }}</span>
+            </div>
+            <h3 class="card-title h6 fw-semibold">
+                <a href="{% url 'curso_detalhes' curso.slug %}" class="stretched-link text-body text-decoration-none">{{ curso.titulo }}</a>
+            </h3>
+            <p class="card-text small text-body-secondary mb-2">
+                <i class="fas fa-chalkboard-teacher me-1"></i>{{ curso.vendedor.get_full_name|default:curso.vendedor.username }}
+            </p>
+            <div class="small mb-3">
+                {% if curso.media_nota %}
+                    <b>{{ curso.media_nota|floatformat:1 }}</b> <span class="estrelas"><i class="fas fa-star"></i></span>
+                {% else %}
+                    <span class="text-body-secondary">Sem avaliações</span>
+                {% endif %}
+                <span class="text-body-secondary">· {{ curso.n_alunos }} aluno{{ curso.n_alunos|pluralize }}</span>
+            </div>
+            <div class="mt-auto d-flex align-items-baseline gap-2">
+                {% if curso.gratuito %}
+                    <span class="fs-5 fw-bold text-success">Gratuito</span>
+                {% else %}
+                    <span class="fs-5 fw-bold">R$ {{ curso.preco_atual }}</span>
+                    {% if curso.em_promocao %}<s class="small text-body-secondary">R$ {{ curso.preco }}</s>{% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </article>
 </div>

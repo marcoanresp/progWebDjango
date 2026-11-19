@@ -11,6 +11,10 @@ class PerfilForm(forms.ModelForm):
     last_name = forms.CharField(label="Sobrenome", max_length=150, required=False)
     email = forms.EmailField(label="E-mail", required=False)
 
+    # Ordem em que os campos aparecem na tela
+    field_order = ["first_name", "last_name", "email", "telefone", "data_nascimento", "foto", "bio",
+                   "titulo_profissional", "site", "chave_pix"]
+
     class Meta:
         model = Perfil
         fields = ["foto", "bio", "telefone", "data_nascimento", "titulo_profissional", "site", "chave_pix"]
