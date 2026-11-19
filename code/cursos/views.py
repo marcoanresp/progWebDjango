@@ -1,9 +1,14 @@
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Avg, Count, Q
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
+from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView, TemplateView
 
-from .models import Categoria, Curso, Matricula
+from .forms import AvaliacaoForm
+from .models import Avaliacao, Categoria, Curso, Matricula
 
 ORDENACOES = {
     "recentes": "-publicado_em",
@@ -82,10 +87,82 @@ class CursoDetailView(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         usuario = self.request.user
-        context["matriculado"] = usuario.is_authenticated and \
-            Matricula.objects.filter(aluno=usuario, curso=self.object, ativa=True).exists()
-        context["avaliacoes"] = self.object.avaliacoes.filter(aprovada=True).select_related("aluno")[:10]
+        curso = self.object
+        matriculado = usuario.is_authenticated and \
+            Matricula.objects.filter(aluno=usuario, curso=curso, ativa=True).exists()
+        context["matriculado"] = matriculado
+
+        # Avaliações públicas (aprovadas). A do próprio aluno aparece separada, no formulário.
+        aprovadas = curso.avaliacoes.filter(aprovada=True)
+        outras = aprovadas.select_related("aluno")
+        if usuario.is_authenticated:
+            outras = outras.exclude(aluno=usuario)
+        context["avaliacoes"] = outras[:20]
+        context["resumo_avaliacoes"] = resumo_avaliacoes(aprovadas)
+
+        # Formulário de avaliação: só para alunos matriculados
+        if matriculado:
+            minha = Avaliacao.objects.filter(curso=curso, aluno=usuario).first()
+            context["minha_avaliacao"] = minha
+            context["form_avaliacao"] = AvaliacaoForm(instance=minha)
         return context
+
+
+def resumo_avaliacoes(avaliacoes):
+    """Total de avaliações e quantas existem de cada nota (5 a 1), com a porcentagem para as barras."""
+    contagem = dict(avaliacoes.order_by().values_list("nota").annotate(qtd=Count("id")))
+    total = sum(contagem.values())
+    return {
+        "total": total,
+        "estrelas": [
+            {"nota": nota, "qtd": contagem.get(nota, 0),
+             "porcentagem": round(contagem.get(nota, 0) * 100 / total) if total else 0}
+            for nota in range(5, 0, -1)
+        ],
+    }
+
+
+@login_required
+@require_POST
+def avaliar_curso(request, slug):
+    """
+    Cria ou atualiza a avaliação do aluno logado.
+    Regras: o curso precisa estar publicado e o aluno precisa ter uma matrícula ativa nele.
+    Cada aluno tem no máximo uma avaliação por curso; enviar de novo apenas edita a existente.
+    """
+    curso = get_object_or_404(Curso, slug=slug, status=Curso.Status.PUBLICADO)
+    destino = reverse("curso_detalhes", args=[slug]) + "#avaliar"
+
+    if not Matricula.objects.filter(aluno=request.user, curso=curso, ativa=True).exists():
+        messages.error(request, "Só alunos matriculados podem avaliar este curso.")
+        return redirect("curso_detalhes", slug=slug)
+
+    existente = Avaliacao.objects.filter(curso=curso, aluno=request.user).first()
+    form = AvaliacaoForm(request.POST, instance=existente)
+    if form.is_valid():
+        avaliacao = form.save(commit=False)
+        avaliacao.curso = curso
+        avaliacao.aluno = request.user
+        avaliacao.save()
+        if existente:
+            messages.success(request, "Sua avaliação foi atualizada.")
+        else:
+            messages.success(request, "Obrigado por avaliar o curso!")
+    else:
+        for erros in form.errors.values():
+            for erro in erros:
+                messages.error(request, erro)
+    return redirect(destino)
+
+
+@login_required
+@require_POST
+def excluir_avaliacao(request, slug):
+    """Permite ao aluno apagar a própria avaliação."""
+    apagadas, _ = Avaliacao.objects.filter(curso__slug=slug, aluno=request.user).delete()
+    if apagadas:
+        messages.info(request, "Sua avaliação foi removida.")
+    return redirect(reverse("curso_detalhes", args=[slug]) + "#avaliar")
 
 
 # ----- Área do cliente (aluno) -----
@@ -114,6 +191,8 @@ class AssistirCursoView(LoginRequiredMixin, DetailView):
         context["modulos"] = self.object.curso.modulos.prefetch_related("aulas")
         context["aulas_concluidas"] = set(self.object.progressos.filter(concluida=True)
                                           .values_list("aula_id", flat=True))
+        context["minha_avaliacao"] = Avaliacao.objects.filter(curso=self.object.curso,
+                                                              aluno=self.request.user).first()
         return context
 
 

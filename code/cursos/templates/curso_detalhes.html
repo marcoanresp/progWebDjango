@@ -42,15 +42,80 @@
                 {% endfor %}
             </div>
 
-            <h5>Avaliações</h5>
+            <h5 class="mt-4" id="avaliacoes">Avaliações</h5>
+
+            {% if resumo_avaliacoes.total %}
+                <div class="row align-items-center mb-4">
+                    <div class="col-sm-4 text-center mb-3 mb-sm-0">
+                        <div class="display-5 fw-bold">{{ curso.media_nota|floatformat:1 }}</div>
+                        <div class="text-warning fs-5">{% for i in "12345" %}{% if forloop.counter <= curso.media_nota|floatformat:0|add:0 %}★{% else %}☆{% endif %}{% endfor %}</div>
+                        <div class="small text-body-secondary">{{ resumo_avaliacoes.total }} avaliaç{{ resumo_avaliacoes.total|pluralize:"ão,ões" }}</div>
+                    </div>
+                    <div class="col-sm-8">
+                        {% for linha in resumo_avaliacoes.estrelas %}
+                            <div class="d-flex align-items-center gap-2 small">
+                                <span class="text-nowrap" style="width: 2.5rem;">{{ linha.nota }} ★</span>
+                                <div class="progress flex-grow-1" style="height: 8px;" role="progressbar" aria-label="{{ linha.nota }} estrelas" aria-valuenow="{{ linha.porcentagem }}" aria-valuemin="0" aria-valuemax="100">
+                                    <div class="progress-bar bg-warning" style="width: {{ linha.porcentagem }}%"></div>
+                                </div>
+                                <span class="text-body-secondary text-end" style="width: 2rem;">{{ linha.qtd }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+
+            {% if matriculado %}
+                <div class="card mb-4" id="avaliar">
+                    <div class="card-body">
+                        <h6 class="card-title">{% if minha_avaliacao %}Sua avaliação{% else %}Avalie este curso{% endif %}</h6>
+                        {% if minha_avaliacao and not minha_avaliacao.aprovada %}
+                            <div class="alert alert-warning small py-2">
+                                Sua avaliação foi ocultada pela moderação e não aparece para os outros visitantes.
+                            </div>
+                        {% endif %}
+                        <form method="post" action="{% url 'avaliar_curso' curso.slug %}">
+                            {% csrf_token %}
+                            <fieldset class="mb-2">
+                                <legend class="form-label fs-6 mb-1">Sua nota</legend>
+                                <div class="estrelas-input">
+                                    {% for valor, rotulo in form_avaliacao.fields.nota.choices %}
+                                        <input type="radio" name="nota" id="nota{{ valor }}" value="{{ valor }}" required
+                                               {% if form_avaliacao.nota.value|stringformat:"s" == valor|stringformat:"s" %}checked{% endif %}>
+                                        <label for="nota{{ valor }}" title="{{ valor }} estrela{{ valor|pluralize }} - {{ rotulo }}">★<span class="visually-hidden">{{ valor }} estrela{{ valor|pluralize }} - {{ rotulo }}</span></label>
+                                    {% endfor %}
+                                </div>
+                            </fieldset>
+                            <div class="mb-3">
+                                <label class="form-label" for="{{ form_avaliacao.comentario.id_for_label }}">Comentário</label>
+                                {{ form_avaliacao.comentario }}
+                            </div>
+                            <button class="btn btn-primary" type="submit">{% if minha_avaliacao %}Salvar alterações{% else %}Enviar avaliação{% endif %}</button>
+                        </form>
+                        {% if minha_avaliacao %}
+                            <form method="post" action="{% url 'excluir_avaliacao' curso.slug %}" class="mt-2"
+                                  onsubmit="return confirm('Remover sua avaliação deste curso?');">
+                                {% csrf_token %}
+                                <button class="btn btn-link btn-sm text-danger p-0" type="submit">Remover minha avaliação</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            {% elif user.is_authenticated %}
+                <p class="small text-body-secondary">Compre ou inscreva-se no curso para poder avaliá-lo.</p>
+            {% else %}
+                <p class="small text-body-secondary"><a href="{% url 'login' %}?next={{ request.path }}">Entre na sua conta</a> para avaliar os cursos que você comprou.</p>
+            {% endif %}
+
             {% for avaliacao in avaliacoes %}
                 <div class="border-bottom py-2">
                     <span class="text-warning">{% for i in "12345" %}{% if forloop.counter <= avaliacao.nota %}★{% else %}☆{% endif %}{% endfor %}</span>
                     <b>{{ avaliacao.aluno.first_name|default:avaliacao.aluno.username }}</b>
-                    <p class="mb-0">{{ avaliacao.comentario }}</p>
+                    <small class="text-body-secondary">· {{ avaliacao.criado_em|date:"d/m/Y" }}</small>
+                    {% if avaliacao.comentario %}<p class="mb-0">{{ avaliacao.comentario|linebreaksbr }}</p>{% endif %}
                 </div>
             {% empty %}
-                <p class="text-body-secondary">Este curso ainda não recebeu avaliações.</p>
+                {% if not minha_avaliacao %}<p class="text-body-secondary">Este curso ainda não recebeu avaliações.</p>{% endif %}
             {% endfor %}
         </div>
 
